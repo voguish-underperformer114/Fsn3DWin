@@ -49,7 +49,7 @@ constexpr int WindowHeight = 720;
 constexpr const char* WindowTitle = "Fsn3DWin";
 constexpr const char* ImGuiGlslVersion = "#version 410";
 #ifndef FSN3DWIN_VERSION
-#define FSN3DWIN_VERSION "0.3.0"
+#define FSN3DWIN_VERSION "0.3.1"
 #endif
 
 bool keyPressedOnce(GLFWwindow* window, int key, bool& wasDown)
@@ -273,7 +273,7 @@ void App::initImGui()
 
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.FontGlobalScale = 1.22f;
+    io.FontGlobalScale = 1.35f;
 
     ImGuiStyle& style = ImGui::GetStyle();
     style.WindowRounding = 5.0f;
@@ -1038,6 +1038,66 @@ bool App::projectSceneNodeLabel(const SceneNode& sceneNode, int framebufferWidth
 
 std::vector<OverlayLabel> App::buildOverlayLabels(int framebufferWidth, int framebufferHeight, float aspectRatio) const
 {
+    struct LabelCandidate {
+        const SceneNode* node = nullptr;
+        float distance = 0.0f;
+    };
+
+    const auto candidateIsCloser = [](const LabelCandidate& lhs, const LabelCandidate& rhs) {
+        return lhs.distance < rhs.distance;
+    };
+    const auto maxHeapByDistance = [](const LabelCandidate& lhs, const LabelCandidate& rhs) {
+        return lhs.distance < rhs.distance;
+    };
+    const auto pushCandidate = [&](std::vector<LabelCandidate>& candidates, const SceneNode& node, std::size_t maxCount) {
+        const float distance = glm::length(node.position - camera_.position());
+        if (candidates.size() < maxCount) {
+            candidates.push_back({.node = &node, .distance = distance});
+            std::push_heap(candidates.begin(), candidates.end(), maxHeapByDistance);
+            return;
+        }
+
+        if (!candidates.empty() && distance < candidates.front().distance) {
+            std::pop_heap(candidates.begin(), candidates.end(), maxHeapByDistance);
+            candidates.back() = {.node = &node, .distance = distance};
+            std::push_heap(candidates.begin(), candidates.end(), maxHeapByDistance);
+        }
+    };
+    const auto labelTextForNode = [&](const SceneNode& node) {
+        const FileNode* fileNode = fileNodeForSceneNode(&node);
+        const std::string name = node.label.empty() ? std::string("(unnamed)") : node.label;
+        if (fileNode == nullptr) {
+            return name;
+        }
+
+        if (fileNode->type == FileNodeType::Directory) {
+            return std::string("[DIR] ") + name;
+        }
+
+        if (fileNode->type == FileNodeType::Symlink) {
+            return std::string("[LINK] ") + name;
+        }
+
+        if (fileNode->type == FileNodeType::Error) {
+            return std::string("[ERR] ") + name;
+        }
+
+        switch (fileNode->category) {
+        case FileCategory::Image:
+            return std::string("[IMG] ") + name;
+        case FileCategory::Source:
+            return std::string("[CODE] ") + name;
+        case FileCategory::Document:
+            return std::string("[DOC] ") + name;
+        case FileCategory::Executable:
+            return std::string("[EXE] ") + name;
+        case FileCategory::Archive:
+            return std::string("[ZIP] ") + name;
+        default:
+            return std::string("[FILE] ") + name;
+        }
+    };
+
     std::vector<OverlayLabel> labels;
     if (labelMode_ == LabelMode::Off || !hasFileWorldLayout_) {
         return labels;
@@ -1055,7 +1115,7 @@ std::vector<OverlayLabel> App::buildOverlayLabels(int framebufferWidth, int fram
 
         labels.push_back({
             .position = screenPosition,
-            .text = node.label,
+            .text = labelTextForNode(node),
             .accent = accent,
         });
     };
@@ -1079,38 +1139,48 @@ std::vector<OverlayLabel> App::buildOverlayLabels(int framebufferWidth, int fram
             addLabel(fileWorldLayout_.nodes.front(), true);
         }
 
-        std::vector<const SceneNode*> directoryNodes;
-        directoryNodes.reserve(12);
+        std::vector<LabelCandidate> directoryNodes;
+        directoryNodes.reserve(32);
         for (const SceneNode& node : fileWorldLayout_.nodes) {
             if (!node.visible || node.category != FileCategory::Directory || node.sceneId == 0) {
                 continue;
             }
 
-            directoryNodes.push_back(&node);
+            pushCandidate(directoryNodes, node, 48);
         }
 
-        std::stable_sort(directoryNodes.begin(), directoryNodes.end(), [](const SceneNode* a, const SceneNode* b) {
-            return a->scale.y > b->scale.y;
+        std::sort(directoryNodes.begin(), directoryNodes.end(), [](const LabelCandidate& a, const LabelCandidate& b) {
+            if (a.node->scale.y != b.node->scale.y) {
+                return a.node->scale.y > b.node->scale.y;
+            }
+            return a.distance < b.distance;
         });
 
-        const std::size_t importantCount = std::min<std::size_t>(directoryNodes.size(), 8);
+        const std::size_t importantCount = std::min<std::size_t>(directoryNodes.size(), 18);
         for (std::size_t index = 0; index < importantCount; ++index) {
-            addLabel(*directoryNodes[index], false);
+            addLabel(*directoryNodes[index].node, false);
         }
     }
 
     if (labelMode_ == LabelMode::LimitedAll) {
-        constexpr std::size_t MaxLabels = 60;
+        constexpr std::size_t MaxLabels = 120;
+        std::vector<LabelCandidate> fileNodes;
+        fileNodes.reserve(128);
         for (const SceneNode& node : fileWorldLayout_.nodes) {
-            if (labels.size() >= MaxLabels) {
-                break;
-            }
-
             if (!node.visible || node.category == FileCategory::Directory) {
                 continue;
             }
 
-            addLabel(node, false);
+            pushCandidate(fileNodes, node, 160);
+        }
+
+        std::sort(fileNodes.begin(), fileNodes.end(), candidateIsCloser);
+        for (const LabelCandidate& candidate : fileNodes) {
+            if (labels.size() >= MaxLabels) {
+                break;
+            }
+
+            addLabel(*candidate.node, false);
         }
     }
 

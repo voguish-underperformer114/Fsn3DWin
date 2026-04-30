@@ -13,12 +13,14 @@ It is intentionally read-only. It is not a file manager. It is built to look spe
 
 ![Fsn3DWin Windows scan](docs/screenshots/windows-filesystem-city.png)
 
+![Fsn3DWin image preview](docs/screenshots/image-preview.png)
+
 ## Highlights
 
 - Native Windows C++20 desktop app.
 - GPU instanced OpenGL rendering for thousands of file nodes.
 - Read-only `std::filesystem` metadata scanner by default.
-- Clear filename/folder labels, selected-name banner, and FSN-style hierarchy wires.
+- Large `[DIR]`, `[IMG]`, and `[FILE]` name tags, selected-name banner, and FSN-style hierarchy wires.
 - 3D photo preview billboard for selected image files.
 - Cinematic fly camera, presentation orbit, clean HUD mode, and screenshot hotkey.
 - Search and category filters for scanned file worlds.
@@ -41,7 +43,7 @@ The screenshot feature writes BMP files to the app-owned `screenshots/` folder i
 Use the latest GitHub release and download the portable Windows zip:
 
 ```text
-Fsn3DWin-0.3.0-windows-x64.zip
+Fsn3DWin-0.3.1-windows-x64.zip
 ```
 
 Extract it and run:

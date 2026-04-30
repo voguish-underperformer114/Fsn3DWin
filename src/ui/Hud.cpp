@@ -178,24 +178,43 @@ void drawActiveNamePlate(const HudState& state, const FileNode* selectedFileNode
         return;
     }
 
-    title = compactText(title, 64);
-    subtitle = compactText(subtitle, 96);
+    title = compactText(title, 72);
+    subtitle = compactText(subtitle, 128);
 
     ImDrawList* drawList = ImGui::GetForegroundDrawList();
     const ImVec2 display = ImGui::GetIO().DisplaySize;
-    const ImVec2 titleSize = ImGui::CalcTextSize(title.c_str());
-    const ImVec2 subtitleSize = ImGui::CalcTextSize(subtitle.c_str());
-    const float width = std::min(std::max(titleSize.x, subtitleSize.x) + 42.0f, display.x - 60.0f);
-    const float height = subtitle.empty() ? 42.0f : 70.0f;
-    const ImVec2 min(display.x * 0.5f - width * 0.5f, 20.0f);
+    ImFont* font = ImGui::GetFont();
+    const float baseFontSize = ImGui::GetFontSize();
+    const float titleScale = selected ? 1.28f : 1.20f;
+    const float subtitleScale = 1.06f;
+    const ImVec2 measuredTitleSize = ImGui::CalcTextSize(title.c_str());
+    const ImVec2 measuredSubtitleSize = ImGui::CalcTextSize(subtitle.c_str());
+    const ImVec2 titleSize(measuredTitleSize.x * titleScale, measuredTitleSize.y * titleScale);
+    const ImVec2 subtitleSize(measuredSubtitleSize.x * subtitleScale, measuredSubtitleSize.y * subtitleScale);
+    const float leftReserve = display.x > 880.0f ? 520.0f : 0.0f;
+    const float availableMinX = leftReserve + 18.0f;
+    const float availableWidth = std::max(300.0f, display.x - availableMinX - 24.0f);
+    const float width = std::min(std::max(titleSize.x, subtitleSize.x) + 48.0f, availableWidth);
+    const float height = subtitle.empty() ? 52.0f : 88.0f;
+    const ImVec2 min(availableMinX + availableWidth * 0.5f - width * 0.5f, 20.0f);
     const ImVec2 max(min.x + width, min.y + height);
     const ImU32 border = selected ? IM_COL32(255, 226, 66, 240) : IM_COL32(255, 118, 36, 220);
 
     drawList->AddRectFilled(min, max, IM_COL32(5, 6, 2, 226), 5.0f);
     drawList->AddRect(min, max, border, 5.0f, 0, 1.4f);
-    drawList->AddText(ImVec2(min.x + 21.0f, min.y + 11.0f), selected ? IM_COL32(255, 244, 150, 255) : IM_COL32(255, 198, 88, 255), title.c_str());
+    drawList->AddText(
+        font,
+        baseFontSize * titleScale,
+        ImVec2(min.x + 24.0f, min.y + 12.0f),
+        selected ? IM_COL32(255, 244, 150, 255) : IM_COL32(255, 198, 88, 255),
+        title.c_str());
     if (!subtitle.empty()) {
-        drawList->AddText(ImVec2(min.x + 21.0f, min.y + 40.0f), IM_COL32(192, 255, 138, 235), subtitle.c_str());
+        drawList->AddText(
+            font,
+            baseFontSize * subtitleScale,
+            ImVec2(min.x + 24.0f, min.y + 53.0f),
+            IM_COL32(192, 255, 138, 235),
+            subtitle.c_str());
     }
 }
 
@@ -227,8 +246,12 @@ void drawScreenLabels(const HudState& state)
             continue;
         }
 
-        const std::string text = compactText(label.text, 42);
-        const ImVec2 textSize = ImGui::CalcTextSize(text.c_str());
+        const std::string text = compactText(label.text, label.accent ? 76 : 54);
+        ImFont* font = ImGui::GetFont();
+        const float baseFontSize = ImGui::GetFontSize();
+        const float fontScale = label.accent ? 1.22f : 1.10f;
+        const ImVec2 measuredSize = ImGui::CalcTextSize(text.c_str());
+        const ImVec2 textSize(measuredSize.x * fontScale, measuredSize.y * fontScale);
         const ImVec2 anchor(label.position.x, label.position.y);
         ImVec2 min(anchor.x - textSize.x * 0.5f - padding.x, anchor.y - textSize.y - padding.y * 2.0f);
         ImVec2 max(anchor.x + textSize.x * 0.5f + padding.x, anchor.y);
@@ -255,8 +278,18 @@ void drawScreenLabels(const HudState& state)
         drawList->AddRectFilled(min, max, IM_COL32(5, 7, 2, label.accent ? 238 : 216), 4.0f);
         drawList->AddRect(min, max, borderColor, 4.0f, 0, label.accent ? 1.6f : 1.1f);
         drawList->AddLine(ImVec2(anchor.x, max.y), ImVec2(anchor.x, max.y + 10.0f), borderColor, 1.0f);
-        drawList->AddText(ImVec2(min.x + padding.x + 1.0f, min.y + padding.y + 1.0f), IM_COL32(0, 0, 0, 210), text.c_str());
-        drawList->AddText(ImVec2(min.x + padding.x, min.y + padding.y), label.accent ? IM_COL32(255, 245, 150, 255) : IM_COL32(240, 255, 166, 255), text.c_str());
+        drawList->AddText(
+            font,
+            baseFontSize * fontScale,
+            ImVec2(min.x + padding.x + 1.0f, min.y + padding.y + 1.0f),
+            IM_COL32(0, 0, 0, 230),
+            text.c_str());
+        drawList->AddText(
+            font,
+            baseFontSize * fontScale,
+            ImVec2(min.x + padding.x, min.y + padding.y),
+            label.accent ? IM_COL32(255, 245, 150, 255) : IM_COL32(240, 255, 166, 255),
+            text.c_str());
     }
 }
 

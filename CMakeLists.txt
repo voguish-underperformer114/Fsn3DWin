@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(Fsn3DWin
-    VERSION 0.3.0
+    VERSION 0.3.1
     DESCRIPTION "A cinematic 3D filesystem visualizer for Windows"
     LANGUAGES CXX
 )
