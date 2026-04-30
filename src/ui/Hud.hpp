@@ -51,12 +51,15 @@ struct HudState {
     std::string hoverName;
     std::string hoverCategory;
     std::string hoverSize;
+    std::string imagePreviewStatus;
     const std::vector<std::string>* scanLog = nullptr;
     bool presentationActive = false;
     bool presentationPaused = false;
     PresentationCameraMode presentationMode = PresentationCameraMode::OrbitRoot;
     float presentationSpeed = 1.0f;
     bool cleanHud = false;
+    bool dangerActionsEnabled = false;
+    bool dangerDeleteWarningAccepted = false;
     std::string screenshotStatus;
     glm::vec3 cameraPosition{};
     float cameraYaw = 0.0f;
@@ -71,6 +74,8 @@ enum class HudAction {
     CancelScan,
     RebuildLayout,
     ClearFilters,
+    OpenSelected,
+    DeleteSelected,
     Quit,
 };
 
@@ -92,6 +97,8 @@ public:
         bool& presentationPaused,
         float& presentationSpeed,
         bool& cleanHud,
+        bool& dangerActionsEnabled,
+        bool& dangerDeleteWarningAccepted,
         const SceneNode* selectedSceneNode,
         const FileNode* selectedFileNode);
 
@@ -102,6 +109,7 @@ private:
     std::array<char, 1024> rootPathBuffer_{};
     std::array<char, 128> nameFilterBuffer_{};
     std::array<char, 64> extensionFilterBuffer_{};
+    std::array<char, 32> deleteConfirmBuffer_{};
     std::string bufferedRootPath_;
     std::string bufferedNameFilter_;
     std::string bufferedExtensionFilter_;

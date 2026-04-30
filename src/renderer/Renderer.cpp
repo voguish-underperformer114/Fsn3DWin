@@ -5,6 +5,7 @@
 #include <glad/glad.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/mat4x4.hpp>
+#include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
@@ -17,6 +18,11 @@ namespace {
 struct SceneVertex {
     glm::vec3 position;
     glm::vec4 color;
+};
+
+struct ImageVertex {
+    glm::vec3 position;
+    glm::vec2 texCoord;
 };
 
 constexpr const char* SceneVertexShader = R"(
@@ -55,6 +61,42 @@ void main()
 }
 )";
 
+constexpr const char* ImageVertexShader = R"(
+#version 410 core
+
+layout(location = 0) in vec3 aPosition;
+layout(location = 1) in vec2 aTexCoord;
+
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProjection;
+
+out vec2 vTexCoord;
+
+void main()
+{
+    vTexCoord = aTexCoord;
+    gl_Position = uProjection * uView * uModel * vec4(aPosition, 1.0);
+}
+)";
+
+constexpr const char* ImageFragmentShader = R"(
+#version 410 core
+
+in vec2 vTexCoord;
+
+uniform sampler2D uTexture;
+uniform vec4 uTint;
+
+out vec4 FragColor;
+
+void main()
+{
+    vec4 sampleColor = texture(uTexture, vTexCoord);
+    FragColor = vec4(sampleColor.rgb * uTint.rgb, sampleColor.a * uTint.a);
+}
+)";
+
 void uploadVertices(unsigned int& vao, unsigned int& vbo, const std::vector<SceneVertex>& vertices)
 {
     glGenVertexArrays(1, &vao);
@@ -67,6 +109,74 @@ void uploadVertices(unsigned int& vao, unsigned int& vbo, const std::vector<Scen
         static_cast<GLsizeiptr>(vertices.size() * sizeof(SceneVertex)),
         vertices.data(),
         GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(
+        0,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        static_cast<GLsizei>(sizeof(SceneVertex)),
+        reinterpret_cast<void*>(offsetof(SceneVertex, position)));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(
+        1,
+        4,
+        GL_FLOAT,
+        GL_FALSE,
+        static_cast<GLsizei>(sizeof(SceneVertex)),
+        reinterpret_cast<void*>(offsetof(SceneVertex, color)));
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void uploadImageVertices(unsigned int& vao, unsigned int& vbo)
+{
+    const ImageVertex vertices[] = {
+        {glm::vec3(-0.5f, -0.5f, 0.0f), glm::vec2(0.0f, 1.0f)},
+        {glm::vec3(0.5f, -0.5f, 0.0f), glm::vec2(1.0f, 1.0f)},
+        {glm::vec3(-0.5f, 0.5f, 0.0f), glm::vec2(0.0f, 0.0f)},
+        {glm::vec3(0.5f, 0.5f, 0.0f), glm::vec2(1.0f, 0.0f)},
+    };
+
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(
+        0,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        static_cast<GLsizei>(sizeof(ImageVertex)),
+        reinterpret_cast<void*>(offsetof(ImageVertex, position)));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(
+        1,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        static_cast<GLsizei>(sizeof(ImageVertex)),
+        reinterpret_cast<void*>(offsetof(ImageVertex, texCoord)));
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void createDynamicLineBuffer(unsigned int& vao, unsigned int& vbo)
+{
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(
@@ -123,8 +233,11 @@ void Renderer::initialize()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     sceneShader_.loadFromSource(SceneVertexShader, SceneFragmentShader);
+    imageShader_.loadFromSource(ImageVertexShader, ImageFragmentShader);
     cubeRenderer_.initialize();
     buildSceneGeometry();
+    buildImageGeometry();
+    buildLinkGeometry();
 
     initialized_ = true;
 }
@@ -141,9 +254,32 @@ void Renderer::shutdown()
         gridVao_ = 0;
     }
 
+    if (imageVbo_ != 0) {
+        glDeleteBuffers(1, &imageVbo_);
+        imageVbo_ = 0;
+    }
+
+    if (imageVao_ != 0) {
+        glDeleteVertexArrays(1, &imageVao_);
+        imageVao_ = 0;
+    }
+
+    if (linkVbo_ != 0) {
+        glDeleteBuffers(1, &linkVbo_);
+        linkVbo_ = 0;
+    }
+
+    if (linkVao_ != 0) {
+        glDeleteVertexArrays(1, &linkVao_);
+        linkVao_ = 0;
+    }
+
     cubeRenderer_.shutdown();
     sceneShader_ = Shader();
+    imageShader_ = Shader();
     gridVertexCount_ = 0;
+    imageVertexCount_ = 0;
+    linkVertexCapacity_ = 0;
     lastInstanceCount_ = 0;
     scanWaveInstances_.clear();
     sceneInstances_.clear();
@@ -170,10 +306,11 @@ void Renderer::renderScene(
     DemoTheme theme,
     SceneMode sceneMode,
     const std::vector<SceneNode>* sceneNodes,
-    RenderMode renderMode,
-    SceneNodeId selectedSceneId,
-    SceneNodeId hoveredSceneId,
-    bool scanActive)
+        RenderMode renderMode,
+        SceneNodeId selectedSceneId,
+        SceneNodeId hoveredSceneId,
+        bool scanActive,
+        const ImageBillboard* imageBillboard)
 {
     if (!initialized_) {
         return;
@@ -212,6 +349,10 @@ void Renderer::renderScene(
     const glm::mat4 projection = camera.projectionMatrix(aspectRatio);
 
     cubeRenderer_.render(view, projection, camera.position(), palette.background, scanWaveInstances_, RenderMode::Solid);
+
+    if (sceneMode == SceneMode::RealScan && sceneNodes != nullptr) {
+        renderHierarchyLinks(camera, aspectRatio, *sceneNodes, glm::vec4(0.10f, 0.98f, 1.0f, 0.34f));
+    }
 
     sceneInstances_.clear();
     detailInstances_.clear();
@@ -348,6 +489,9 @@ void Renderer::renderScene(
     cubeRenderer_.render(view, projection, camera.position(), palette.background, sceneInstances_, renderMode);
     cubeRenderer_.render(view, projection, camera.position(), palette.background, detailInstances_, RenderMode::SolidWireframe);
     cubeRenderer_.render(view, projection, camera.position(), palette.background, accentInstances_, RenderMode::Wireframe);
+    if (imageBillboard != nullptr && imageBillboard->textureId != 0) {
+        renderImageBillboard(camera, aspectRatio, *imageBillboard);
+    }
     lastInstanceCount_ = sceneInstances_.size();
 }
 
@@ -393,4 +537,114 @@ void Renderer::buildSceneGeometry()
 
     uploadVertices(gridVao_, gridVbo_, gridVertices);
     gridVertexCount_ = static_cast<int>(gridVertices.size());
+}
+
+void Renderer::buildImageGeometry()
+{
+    uploadImageVertices(imageVao_, imageVbo_);
+    imageVertexCount_ = 4;
+}
+
+void Renderer::buildLinkGeometry()
+{
+    createDynamicLineBuffer(linkVao_, linkVbo_);
+}
+
+void Renderer::renderHierarchyLinks(
+    const Camera& camera,
+    float aspectRatio,
+    const std::vector<SceneNode>& sceneNodes,
+    const glm::vec4& tint)
+{
+    if (linkVao_ == 0 || sceneNodes.empty()) {
+        return;
+    }
+
+    std::vector<SceneVertex> vertices;
+    vertices.reserve(sceneNodes.size() * 2U);
+    for (const SceneNode& node : sceneNodes) {
+        if (!node.visible || node.parentSceneId == InvalidSceneNodeId) {
+            continue;
+        }
+
+        const std::size_t parentIndex = static_cast<std::size_t>(node.parentSceneId);
+        if (parentIndex >= sceneNodes.size()) {
+            continue;
+        }
+
+        const SceneNode& parent = sceneNodes[parentIndex];
+        if (!parent.visible) {
+            continue;
+        }
+
+        const glm::vec3 parentPoint = parent.position + glm::vec3(0.0f, parent.scale.y * 0.52f, 0.0f);
+        const glm::vec3 childPoint = node.position + glm::vec3(0.0f, node.scale.y * 0.52f, 0.0f);
+        addLine(vertices, parentPoint, childPoint, tint);
+    }
+
+    if (vertices.empty()) {
+        return;
+    }
+
+    glBindVertexArray(linkVao_);
+    glBindBuffer(GL_ARRAY_BUFFER, linkVbo_);
+    const std::size_t byteCount = vertices.size() * sizeof(SceneVertex);
+    if (vertices.size() > linkVertexCapacity_) {
+        linkVertexCapacity_ = vertices.size();
+        glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(byteCount), vertices.data(), GL_DYNAMIC_DRAW);
+    } else {
+        glBufferSubData(GL_ARRAY_BUFFER, 0, static_cast<GLsizeiptr>(byteCount), vertices.data());
+    }
+
+    sceneShader_.use();
+    sceneShader_.setMat4("uModel", glm::mat4(1.0f));
+    sceneShader_.setMat4("uView", camera.viewMatrix());
+    sceneShader_.setMat4("uProjection", camera.projectionMatrix(aspectRatio));
+    sceneShader_.setFloat("uAlpha", 1.0f);
+    sceneShader_.setFloat("uIntensity", 1.35f);
+    sceneShader_.setVec4("uTint", glm::vec4(1.0f));
+
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+    glDepthMask(GL_FALSE);
+    glLineWidth(1.35f);
+    glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices.size()));
+    glLineWidth(1.0f);
+    glDepthMask(GL_TRUE);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void Renderer::renderImageBillboard(const Camera& camera, float aspectRatio, const ImageBillboard& billboard)
+{
+    if (imageVao_ == 0 || billboard.textureId == 0) {
+        return;
+    }
+
+    const glm::vec3 toCamera = camera.position() - billboard.position;
+    const float angle = std::atan2(toCamera.x, toCamera.z);
+    glm::mat4 model(1.0f);
+    model = glm::translate(model, billboard.position);
+    model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(billboard.width, billboard.height, 1.0f));
+
+    imageShader_.use();
+    imageShader_.setMat4("uModel", model);
+    imageShader_.setMat4("uView", camera.viewMatrix());
+    imageShader_.setMat4("uProjection", camera.projectionMatrix(aspectRatio));
+    imageShader_.setVec4("uTint", glm::vec4(1.0f));
+    imageShader_.setInt("uTexture", 0);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, billboard.textureId);
+    glBindVertexArray(imageVao_);
+
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, imageVertexCount_);
+    glDepthMask(GL_TRUE);
+
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }

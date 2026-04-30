@@ -1,7 +1,20 @@
 #include "app/App.hpp"
 
+#include "media/ImageLoader.hpp"
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#include <shellapi.h>
+#endif
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -170,6 +183,13 @@ App::App(AppOptions options)
         scanOptions_.maxNodes = *options.maxNodes;
     }
     autoScanRequested_ = options.autoScan;
+    selectFirstImageRequested_ = options.selectFirstImage;
+    if (options.screenshotAfterSeconds.has_value()) {
+        scheduledScreenshotSeconds_ = std::max(0.0, *options.screenshotAfterSeconds);
+    }
+    if (options.quitAfterSeconds.has_value()) {
+        scheduledQuitSeconds_ = std::max(0.0, *options.quitAfterSeconds);
+    }
 
     initGlfw();
     initWindow();
@@ -187,6 +207,7 @@ App::~App()
     }
 
     shutdownImGui();
+    clearSelectedImagePreview();
     renderer_.shutdown();
 
     if (window_ != nullptr) {
@@ -328,6 +349,11 @@ void App::pollFrame()
     const DemoPalette palette = DemoScene::palette(theme_);
     updatePicking(framebufferWidth, framebufferHeight, aspectRatio);
 
+    const SceneNode* selectedSceneNode = sceneNodeById(selectedSceneId_);
+    const FileNode* selectedFileNode = fileNodeForSceneNode(selectedSceneNode);
+    updateSelectedImagePreview(selectedSceneNode, selectedFileNode);
+    const std::optional<ImageBillboard> imageBillboard = selectedImageBillboard(selectedSceneNode);
+
     renderer_.beginFrame(framebufferWidth, framebufferHeight, palette.background);
     renderer_.renderScene(
         camera_,
@@ -340,7 +366,8 @@ void App::pollFrame()
         renderMode_,
         selectedSceneId_,
         hoveredSceneId_,
-        scanInProgress());
+        scanInProgress(),
+        imageBillboard.has_value() ? &*imageBillboard : nullptr);
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -351,8 +378,6 @@ void App::pollFrame()
         camera_.changeMovementSpeed(io.MouseWheel);
     }
 
-    const SceneNode* selectedSceneNode = sceneNodeById(selectedSceneId_);
-    const FileNode* selectedFileNode = fileNodeForSceneNode(selectedSceneNode);
     const SceneNode* hoveredSceneNode = sceneNodeById(hoveredSceneId_);
     const FileNode* hoveredFileNode = fileNodeForSceneNode(hoveredSceneNode);
 
@@ -382,12 +407,15 @@ void App::pollFrame()
         .hoverName = hoveredFileNode != nullptr ? hoveredFileNode->name : std::string(),
         .hoverCategory = hoveredFileNode != nullptr ? std::string("category: ") + fileCategoryName(hoveredFileNode->category) : std::string(),
         .hoverSize = hoveredFileNode != nullptr ? formatBytesForOverlay(*hoveredFileNode) : std::string(),
+        .imagePreviewStatus = imagePreviewStatus_,
         .scanLog = &scanLog_,
         .presentationActive = presentationActive_,
         .presentationPaused = presentationPaused_,
         .presentationMode = presentationMode_,
         .presentationSpeed = presentationSpeed_,
         .cleanHud = cleanHud_,
+        .dangerActionsEnabled = dangerActionsEnabled_,
+        .dangerDeleteWarningAccepted = dangerDeleteWarningAccepted_,
         .screenshotStatus = screenshotStatus_,
         .cameraPosition = camera_.position(),
         .cameraYaw = camera_.yaw(),
@@ -412,6 +440,8 @@ void App::pollFrame()
         presentationPaused_,
         presentationSpeed_,
         cleanHud_,
+        dangerActionsEnabled_,
+        dangerDeleteWarningAccepted_,
         selectedSceneNode,
         selectedFileNode);
 
@@ -432,6 +462,10 @@ void App::pollFrame()
     } else if (action == HudAction::ClearFilters) {
         clearFilters();
         filtersAlreadyApplied = true;
+    } else if (action == HudAction::OpenSelected) {
+        openSelectedPath();
+    } else if (action == HudAction::DeleteSelected) {
+        moveSelectedFileToRecycleBin();
     }
 
     if (!filtersAlreadyApplied && !filtersEqual(filtersBeforeHud, fileWorldFilters_)) {
@@ -441,9 +475,20 @@ void App::pollFrame()
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+    if (!scheduledScreenshotTaken_ &&
+        scheduledScreenshotSeconds_ >= 0.0 &&
+        timer_.totalSeconds() >= scheduledScreenshotSeconds_) {
+        requestScreenshot();
+        scheduledScreenshotTaken_ = true;
+    }
+
     if (screenshotRequested_) {
         saveScreenshot(framebufferWidth, framebufferHeight);
         screenshotRequested_ = false;
+    }
+
+    if (scheduledQuitSeconds_ >= 0.0 && timer_.totalSeconds() >= scheduledQuitSeconds_) {
+        glfwSetWindowShouldClose(window_, GLFW_TRUE);
     }
 
     glfwSwapBuffers(window_);
@@ -592,6 +637,7 @@ void App::updatePicking(int framebufferWidth, int framebufferHeight, float aspec
 
     if (keyPressedOnce(window_, GLFW_KEY_ESCAPE, escapeWasDown_)) {
         selectedSceneId_ = InvalidSceneNodeId;
+        dangerDeleteWarningAccepted_ = false;
     }
 
     if (keyPressedOnce(window_, GLFW_KEY_F, focusWasDown_)) {
@@ -635,6 +681,9 @@ void App::updatePicking(int framebufferWidth, int framebufferHeight, float aspec
 
     if (clickStarted) {
         const SceneNodeId clickedSceneId = hoveredSceneId_;
+        if (selectedSceneId_ != clickedSceneId) {
+            dangerDeleteWarningAccepted_ = false;
+        }
         selectedSceneId_ = clickedSceneId;
 
         const bool doubleClick = clickedSceneId != InvalidSceneNodeId &&
@@ -725,6 +774,99 @@ const FileNode* App::fileNodeForSceneNode(const SceneNode* sceneNode) const
     return &scanResult_.nodes[sceneNode->sourceFileNodeId];
 }
 
+void App::updateSelectedImagePreview(const SceneNode* selectedSceneNode, const FileNode* selectedFileNode)
+{
+    if (selectedSceneNode == nullptr || selectedFileNode == nullptr) {
+        clearSelectedImagePreview();
+        return;
+    }
+
+    if (selectedFileNode->type != FileNodeType::File || selectedFileNode->category != FileCategory::Image) {
+        clearSelectedImagePreview();
+        imagePreviewStatus_ = "selected item is not an image file";
+        return;
+    }
+
+    if (imagePreviewFileNodeId_ == selectedFileNode->id) {
+        return;
+    }
+
+    clearSelectedImagePreview();
+    imagePreviewFileNodeId_ = selectedFileNode->id;
+    imagePreviewStatus_ = "loading " + selectedFileNode->name;
+
+    const LoadedImage image = loadImageFileRgba(selectedFileNode->fullPath);
+    if (!image.ok) {
+        imagePreviewStatus_ = "preview failed: " + image.error;
+        return;
+    }
+
+    glGenTextures(1, &imagePreviewTextureId_);
+    glBindTexture(GL_TEXTURE_2D, imagePreviewTextureId_);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA8,
+        image.width,
+        image.height,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        image.rgba.data());
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    imagePreviewWidth_ = image.width;
+    imagePreviewHeight_ = image.height;
+    imagePreviewStatus_ = "showing " + selectedFileNode->name + " (" +
+        std::to_string(imagePreviewWidth_) + "x" + std::to_string(imagePreviewHeight_) + ")";
+}
+
+void App::clearSelectedImagePreview()
+{
+    if (imagePreviewTextureId_ != 0) {
+        glDeleteTextures(1, &imagePreviewTextureId_);
+        imagePreviewTextureId_ = 0;
+    }
+
+    imagePreviewFileNodeId_ = InvalidFileNodeId;
+    imagePreviewWidth_ = 0;
+    imagePreviewHeight_ = 0;
+    imagePreviewStatus_.clear();
+}
+
+std::optional<ImageBillboard> App::selectedImageBillboard(const SceneNode* selectedSceneNode) const
+{
+    if (selectedSceneNode == nullptr || imagePreviewTextureId_ == 0 || imagePreviewWidth_ <= 0 || imagePreviewHeight_ <= 0) {
+        return std::nullopt;
+    }
+
+    const float aspect = static_cast<float>(imagePreviewWidth_) / static_cast<float>(std::max(imagePreviewHeight_, 1));
+    float width = 5.2f;
+    float height = width / std::max(aspect, 0.05f);
+    if (height > 4.2f) {
+        height = 4.2f;
+        width = height * aspect;
+    }
+
+    width = std::clamp(width, 1.6f, 6.4f);
+    height = std::clamp(height, 1.2f, 4.4f);
+
+    ImageBillboard billboard;
+    billboard.textureId = imagePreviewTextureId_;
+    billboard.width = width;
+    billboard.height = height;
+    billboard.position = selectedSceneNode->position + glm::vec3(
+        0.0f,
+        selectedSceneNode->scale.y * 0.58f + height * 0.5f + 1.25f,
+        0.0f);
+    return billboard;
+}
+
 void App::focusSelectedNode()
 {
     const SceneNode* node = sceneNodeById(selectedSceneId_);
@@ -780,6 +922,85 @@ void App::copySelectedPathToClipboard()
 
     const std::string path = fileNode->fullPath.string();
     glfwSetClipboardString(window_, path.c_str());
+}
+
+void App::openSelectedPath()
+{
+    if (!dangerActionsEnabled_) {
+        appendScanLog("open blocked: danger actions are disabled");
+        return;
+    }
+
+    const SceneNode* sceneNode = sceneNodeById(selectedSceneId_);
+    const FileNode* fileNode = fileNodeForSceneNode(sceneNode);
+    if (fileNode == nullptr) {
+        appendScanLog("open blocked: no selected item");
+        return;
+    }
+
+#ifdef _WIN32
+    const HINSTANCE result = ShellExecuteW(
+        nullptr,
+        L"open",
+        fileNode->fullPath.wstring().c_str(),
+        nullptr,
+        nullptr,
+        SW_SHOWNORMAL);
+    if (reinterpret_cast<intptr_t>(result) <= 32) {
+        appendScanLog("open failed: Windows rejected the selected path");
+        return;
+    }
+
+    appendScanLog("opened with Windows: " + fileNode->name);
+#else
+    appendScanLog("open is only implemented on Windows");
+#endif
+}
+
+void App::moveSelectedFileToRecycleBin()
+{
+    if (!dangerActionsEnabled_ || !dangerDeleteWarningAccepted_) {
+        appendScanLog("delete blocked: warnings are not accepted");
+        return;
+    }
+
+    const SceneNode* sceneNode = sceneNodeById(selectedSceneId_);
+    const FileNode* fileNode = fileNodeForSceneNode(sceneNode);
+    if (fileNode == nullptr) {
+        appendScanLog("delete blocked: no selected item");
+        return;
+    }
+
+    if (fileNode->type != FileNodeType::File) {
+        appendScanLog("delete blocked: only files can be moved to Recycle Bin");
+        return;
+    }
+
+#ifdef _WIN32
+    std::wstring from = fileNode->fullPath.wstring();
+    from.push_back(L'\0');
+    from.push_back(L'\0');
+
+    SHFILEOPSTRUCTW operation{};
+    operation.wFunc = FO_DELETE;
+    operation.pFrom = from.c_str();
+    operation.fFlags = FOF_ALLOWUNDO | FOF_WANTNUKEWARNING;
+
+    const int result = SHFileOperationW(&operation);
+    if (result != 0 || operation.fAnyOperationsAborted) {
+        appendScanLog("delete canceled or failed");
+        return;
+    }
+
+    appendScanLog("moved to Recycle Bin: " + fileNode->name);
+    dangerDeleteWarningAccepted_ = false;
+    selectedSceneId_ = InvalidSceneNodeId;
+    hoveredSceneId_ = InvalidSceneNodeId;
+    clearSelectedImagePreview();
+    performScan();
+#else
+    appendScanLog("delete is only implemented on Windows");
+#endif
 }
 
 bool App::projectSceneNodeLabel(const SceneNode& sceneNode, int framebufferWidth, int framebufferHeight, float aspectRatio, glm::vec2& screenPosition) const
@@ -855,7 +1076,7 @@ std::vector<OverlayLabel> App::buildOverlayLabels(int framebufferWidth, int fram
         }
 
         std::vector<const SceneNode*> directoryNodes;
-        directoryNodes.reserve(8);
+        directoryNodes.reserve(12);
         for (const SceneNode& node : fileWorldLayout_.nodes) {
             if (!node.visible || node.category != FileCategory::Directory || node.sceneId == 0) {
                 continue;
@@ -868,14 +1089,14 @@ std::vector<OverlayLabel> App::buildOverlayLabels(int framebufferWidth, int fram
             return a->scale.y > b->scale.y;
         });
 
-        const std::size_t importantCount = std::min<std::size_t>(directoryNodes.size(), 5);
+        const std::size_t importantCount = std::min<std::size_t>(directoryNodes.size(), 8);
         for (std::size_t index = 0; index < importantCount; ++index) {
             addLabel(*directoryNodes[index], false);
         }
     }
 
     if (labelMode_ == LabelMode::LimitedAll) {
-        constexpr std::size_t MaxLabels = 26;
+        constexpr std::size_t MaxLabels = 60;
         for (const SceneNode& node : fileWorldLayout_.nodes) {
             if (labels.size() >= MaxLabels) {
                 break;
@@ -1092,6 +1313,10 @@ void App::updateScanWorker()
             (canceled ? "scan canceled: " : "scan complete: ") +
             std::to_string(scanResult_.counts.nodes) + " nodes");
         rebuildLayout();
+        if (selectFirstImageRequested_) {
+            selectFirstImageNode();
+            selectFirstImageRequested_ = false;
+        }
     } catch (const std::exception& error) {
         scanResult_ = FileScanResult();
         scanResult_.errors.push_back(std::string("Worker failed: ") + error.what());
@@ -1131,9 +1356,31 @@ void App::rebuildLayout()
     hasFileWorldLayout_ = true;
     selectedSceneId_ = InvalidSceneNodeId;
     hoveredSceneId_ = InvalidSceneNodeId;
+    dangerDeleteWarningAccepted_ = false;
+    clearSelectedImagePreview();
     applyFilters();
     appendScanLog("layout: " + std::string(fileWorldLayoutModeName(fileWorldSettings_.layoutMode)) + " // visible " + std::to_string(fileWorldLayout_.visibleCount));
     sceneMode_ = SceneMode::RealScan;
+}
+
+void App::selectFirstImageNode()
+{
+    if (!hasFileWorldLayout_) {
+        return;
+    }
+
+    for (const SceneNode& sceneNode : fileWorldLayout_.nodes) {
+        const FileNode* fileNode = fileNodeForSceneNode(&sceneNode);
+        if (fileNode != nullptr && sceneNode.visible && fileNode->type == FileNodeType::File && fileNode->category == FileCategory::Image) {
+            selectedSceneId_ = sceneNode.sceneId;
+            const float radius = std::max({sceneNode.scale.x, sceneNode.scale.y, sceneNode.scale.z});
+            startFocusAnimation(sceneNode.position, radius);
+            appendScanLog("selected image preview: " + fileNode->name);
+            return;
+        }
+    }
+
+    appendScanLog("no image file found for preview");
 }
 
 void App::applyFilters()

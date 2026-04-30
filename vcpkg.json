@@ -1,6 +1,6 @@
 {
   "name": "fsn3dwin",
-  "version-string": "0.1.0",
+  "version-string": "0.2.0",
   "description": "A cinematic GPU-accelerated 3D filesystem visualizer for Windows.",
   "dependencies": [
     "glfw3",

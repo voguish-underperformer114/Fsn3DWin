@@ -18,6 +18,7 @@ struct Aabb {
 
 struct SceneNode {
     SceneNodeId sceneId = InvalidSceneNodeId;
+    SceneNodeId parentSceneId = InvalidSceneNodeId;
     FileNodeId sourceFileNodeId = InvalidFileNodeId;
     glm::vec3 position{};
     glm::vec3 scale{1.0f};

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 
 namespace {
@@ -97,6 +98,19 @@ std::string pathToString(const std::filesystem::path& path)
     }
 }
 
+std::string compactText(const std::string& text, std::size_t maxLength)
+{
+    if (text.size() <= maxLength) {
+        return text;
+    }
+
+    if (maxLength <= 3) {
+        return text.substr(0, maxLength);
+    }
+
+    return text.substr(0, maxLength - 3) + "...";
+}
+
 void drawSelectedMetadata(const SceneNode* selectedSceneNode, const FileNode* selectedFileNode)
 {
     if (selectedSceneNode == nullptr || selectedFileNode == nullptr) {
@@ -123,6 +137,46 @@ void drawSelectedMetadata(const SceneNode* selectedSceneNode, const FileNode* se
     ImGui::Text("Scene id: %u", selectedSceneNode->sceneId);
 }
 
+void drawActiveNamePlate(const HudState& state, const FileNode* selectedFileNode)
+{
+    std::string title;
+    std::string subtitle;
+    bool selected = false;
+
+    if (selectedFileNode != nullptr) {
+        selected = true;
+        title = selectedFileNode->name;
+        subtitle = std::string(fileCategoryName(selectedFileNode->category)) + " // " + pathToString(selectedFileNode->fullPath);
+    } else if (state.hoverTooltipVisible && !state.hoverName.empty()) {
+        title = state.hoverName;
+        subtitle = state.hoverCategory;
+    }
+
+    if (title.empty()) {
+        return;
+    }
+
+    title = compactText(title, 64);
+    subtitle = compactText(subtitle, 96);
+
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const ImVec2 titleSize = ImGui::CalcTextSize(title.c_str());
+    const ImVec2 subtitleSize = ImGui::CalcTextSize(subtitle.c_str());
+    const float width = std::min(std::max(titleSize.x, subtitleSize.x) + 34.0f, display.x - 80.0f);
+    const float height = subtitle.empty() ? 34.0f : 56.0f;
+    const ImVec2 min(display.x * 0.5f - width * 0.5f, 20.0f);
+    const ImVec2 max(min.x + width, min.y + height);
+    const ImU32 border = selected ? IM_COL32(255, 230, 80, 235) : IM_COL32(90, 245, 255, 220);
+
+    drawList->AddRectFilled(min, max, IM_COL32(2, 8, 15, 210), 5.0f);
+    drawList->AddRect(min, max, border, 5.0f, 0, 1.4f);
+    drawList->AddText(ImVec2(min.x + 17.0f, min.y + 9.0f), selected ? IM_COL32(255, 242, 170, 255) : IM_COL32(210, 255, 255, 255), title.c_str());
+    if (!subtitle.empty()) {
+        drawList->AddText(ImVec2(min.x + 17.0f, min.y + 31.0f), IM_COL32(160, 235, 255, 230), subtitle.c_str());
+    }
+}
+
 void drawScreenLabels(const HudState& state)
 {
     if (state.overlayLabels.empty()) {
@@ -130,23 +184,86 @@ void drawScreenLabels(const HudState& state)
     }
 
     ImDrawList* drawList = ImGui::GetForegroundDrawList();
-    const ImVec2 padding(8.0f, 5.0f);
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const ImVec2 padding(10.0f, 6.0f);
 
     for (const OverlayLabel& label : state.overlayLabels) {
         if (label.text.empty()) {
             continue;
         }
 
-        const ImVec2 textSize = ImGui::CalcTextSize(label.text.c_str());
+        const std::string text = compactText(label.text, 42);
+        const ImVec2 textSize = ImGui::CalcTextSize(text.c_str());
         const ImVec2 anchor(label.position.x, label.position.y);
-        const ImVec2 min(anchor.x - textSize.x * 0.5f - padding.x, anchor.y - textSize.y - padding.y * 2.0f);
-        const ImVec2 max(anchor.x + textSize.x * 0.5f + padding.x, anchor.y);
+        ImVec2 min(anchor.x - textSize.x * 0.5f - padding.x, anchor.y - textSize.y - padding.y * 2.0f);
+        ImVec2 max(anchor.x + textSize.x * 0.5f + padding.x, anchor.y);
+        const float shiftX = std::clamp(min.x, 8.0f, std::max(8.0f, display.x - (max.x - min.x) - 8.0f)) - min.x;
+        min.x += shiftX;
+        max.x += shiftX;
         const ImU32 borderColor = label.accent ? IM_COL32(255, 230, 95, 235) : IM_COL32(120, 255, 230, 210);
 
-        drawList->AddRectFilled(min, max, IM_COL32(3, 10, 20, label.accent ? 225 : 185), 4.0f);
-        drawList->AddRect(min, max, borderColor, 4.0f);
+        drawList->AddRectFilled(min, max, IM_COL32(3, 10, 20, label.accent ? 235 : 205), 4.0f);
+        drawList->AddRect(min, max, borderColor, 4.0f, 0, label.accent ? 1.6f : 1.1f);
         drawList->AddLine(ImVec2(anchor.x, max.y), ImVec2(anchor.x, max.y + 10.0f), borderColor, 1.0f);
-        drawList->AddText(ImVec2(min.x + padding.x, min.y + padding.y), IM_COL32(230, 255, 245, 255), label.text.c_str());
+        drawList->AddText(ImVec2(min.x + padding.x + 1.0f, min.y + padding.y + 1.0f), IM_COL32(0, 0, 0, 210), text.c_str());
+        drawList->AddText(ImVec2(min.x + padding.x, min.y + padding.y), IM_COL32(238, 255, 248, 255), text.c_str());
+    }
+}
+
+void drawDangerActions(
+    HudAction& action,
+    bool& dangerActionsEnabled,
+    bool& dangerDeleteWarningAccepted,
+    const FileNode* selectedFileNode,
+    std::array<char, 32>& deleteConfirmBuffer)
+{
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(1.0f, 0.78f, 0.22f, 1.0f), "Danger zone");
+    ImGui::TextWrapped("Default mode is read-only. These actions can open files or move a file to the Recycle Bin.");
+
+    if (ImGui::Checkbox("Warning 1: enable dangerous actions", &dangerActionsEnabled) && !dangerActionsEnabled) {
+        dangerDeleteWarningAccepted = false;
+        std::fill(deleteConfirmBuffer.begin(), deleteConfirmBuffer.end(), '\0');
+    }
+
+    const bool hasSelection = selectedFileNode != nullptr;
+    const bool canOpen = dangerActionsEnabled && hasSelection;
+    if (!canOpen) {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("Open selected with Windows")) {
+        action = HudAction::OpenSelected;
+    }
+    if (!canOpen) {
+        ImGui::EndDisabled();
+    }
+
+    const bool canDeleteType = hasSelection && selectedFileNode->type == FileNodeType::File;
+    if (!dangerActionsEnabled || !canDeleteType) {
+        ImGui::BeginDisabled();
+    }
+
+    ImGui::Checkbox("Warning 2: I understand delete moves the selected file", &dangerDeleteWarningAccepted);
+    ImGui::InputText("Type DELETE", deleteConfirmBuffer.data(), deleteConfirmBuffer.size());
+
+    const bool deletePhraseMatches = std::strcmp(deleteConfirmBuffer.data(), "DELETE") == 0;
+    const bool canDelete = dangerActionsEnabled && canDeleteType && dangerDeleteWarningAccepted && deletePhraseMatches;
+    if (!canDelete) {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("Move selected file to Recycle Bin")) {
+        action = HudAction::DeleteSelected;
+    }
+    if (!canDelete) {
+        ImGui::EndDisabled();
+    }
+
+    if (!dangerActionsEnabled || !canDeleteType) {
+        ImGui::EndDisabled();
+    }
+
+    if (hasSelection && selectedFileNode->type == FileNodeType::Directory) {
+        ImGui::TextDisabled("Directory delete is intentionally unavailable.");
     }
 }
 
@@ -331,6 +448,8 @@ HudAction Hud::draw(
     bool& presentationPaused,
     float& presentationSpeed,
     bool& cleanHud,
+    bool& dangerActionsEnabled,
+    bool& dangerDeleteWarningAccepted,
     const SceneNode* selectedSceneNode,
     const FileNode* selectedFileNode)
 {
@@ -354,6 +473,7 @@ HudAction Hud::draw(
         ImGui::End();
 
         drawOverlayEffects(state, scanOptions, scanResult);
+        drawActiveNamePlate(state, selectedFileNode);
         drawScreenLabels(state);
         drawHoverTooltip(state);
         return action;
@@ -622,6 +742,10 @@ HudAction Hud::draw(
 
     ImGui::Separator();
     drawSelectedMetadata(selectedSceneNode, selectedFileNode);
+    if (!state.imagePreviewStatus.empty()) {
+        ImGui::TextWrapped("Image preview: %s", state.imagePreviewStatus.c_str());
+    }
+    drawDangerActions(action, dangerActionsEnabled, dangerDeleteWarningAccepted, selectedFileNode, deleteConfirmBuffer_);
 
     ImGui::Separator();
     ImGui::Text(
@@ -644,6 +768,7 @@ HudAction Hud::draw(
 
     ImGui::End();
     drawOverlayEffects(state, scanOptions, scanResult);
+    drawActiveNamePlate(state, selectedFileNode);
     drawScreenLabels(state);
     drawHoverTooltip(state);
 

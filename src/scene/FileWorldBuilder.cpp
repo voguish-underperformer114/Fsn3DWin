@@ -136,12 +136,14 @@ int categoryDistrict(FileCategory category)
 
 SceneNode makeSceneNode(
     SceneNodeId sceneId,
+    SceneNodeId parentSceneId,
     const FileNode& fileNode,
     const glm::vec3& scale,
     const glm::vec3& groundPosition)
 {
     SceneNode sceneNode;
     sceneNode.sceneId = sceneId;
+    sceneNode.parentSceneId = parentSceneId;
     sceneNode.sourceFileNodeId = fileNode.id;
     sceneNode.position = glm::vec3(groundPosition.x, scale.y * 0.5f, groundPosition.z);
     sceneNode.scale = scale;
@@ -222,7 +224,13 @@ void layoutChildren(
             tangent * (lane * streetOffset);
 
         const SceneNodeId sceneId = static_cast<SceneNodeId>(layout.nodes.size());
-        layout.nodes.push_back(makeSceneNode(sceneId, child, scale, groundPosition));
+        const auto parentSceneId = sceneIds.find(parentId);
+        layout.nodes.push_back(makeSceneNode(
+            sceneId,
+            parentSceneId != sceneIds.end() ? parentSceneId->second : InvalidSceneNodeId,
+            child,
+            scale,
+            groundPosition));
         sceneIds[childId] = sceneId;
 
         if (child.type == FileNodeType::Directory) {
@@ -263,7 +271,7 @@ void layoutCategoryDistricts(
         const glm::vec3 groundPosition = center + tangent * x + radial * z;
 
         const SceneNodeId sceneId = static_cast<SceneNodeId>(layout.nodes.size());
-        layout.nodes.push_back(makeSceneNode(sceneId, fileNode, nodeScale(fileNode, scanResult, settings), groundPosition));
+        layout.nodes.push_back(makeSceneNode(sceneId, InvalidSceneNodeId, fileNode, nodeScale(fileNode, scanResult, settings), groundPosition));
     }
 }
 
@@ -305,7 +313,7 @@ void layoutSizeSkyline(
             startZ + static_cast<float>(row) * rowSpacing);
 
         const SceneNodeId sceneId = static_cast<SceneNodeId>(layout.nodes.size());
-        layout.nodes.push_back(makeSceneNode(sceneId, fileNode, nodeScale(fileNode, scanResult, settings), groundPosition));
+        layout.nodes.push_back(makeSceneNode(sceneId, InvalidSceneNodeId, fileNode, nodeScale(fileNode, scanResult, settings), groundPosition));
     }
 }
 }
@@ -377,6 +385,7 @@ FileWorldLayout FileWorldBuilder::build(const FileScanResult& scanResult, const 
 
     SceneNode rootNode;
     rootNode.sceneId = 0;
+    rootNode.parentSceneId = InvalidSceneNodeId;
     rootNode.sourceFileNodeId = root.id;
     rootNode.position = glm::vec3(0.0f, rootScale.y * 0.5f, 0.0f);
     rootNode.scale = rootScale;

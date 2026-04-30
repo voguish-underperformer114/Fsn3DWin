@@ -27,7 +27,10 @@ struct AppOptions {
     std::optional<std::filesystem::path> rootPath;
     std::optional<std::uint32_t> maxDepth;
     std::optional<std::size_t> maxNodes;
+    std::optional<double> screenshotAfterSeconds;
+    std::optional<double> quitAfterSeconds;
     bool autoScan = false;
+    bool selectFirstImage = false;
 };
 
 class App {
@@ -54,10 +57,15 @@ private:
     std::optional<SceneNodeId> pickSceneNode(double mouseX, double mouseY, int framebufferWidth, int framebufferHeight, float aspectRatio) const;
     const SceneNode* sceneNodeById(SceneNodeId sceneId) const;
     const FileNode* fileNodeForSceneNode(const SceneNode* sceneNode) const;
+    void updateSelectedImagePreview(const SceneNode* selectedSceneNode, const FileNode* selectedFileNode);
+    void clearSelectedImagePreview();
+    std::optional<ImageBillboard> selectedImageBillboard(const SceneNode* selectedSceneNode) const;
     void focusSelectedNode();
     void startFocusAnimation(const glm::vec3& target, float radius);
     void updateFocusAnimation(double deltaSeconds);
     void copySelectedPathToClipboard();
+    void openSelectedPath();
+    void moveSelectedFileToRecycleBin();
     bool projectSceneNodeLabel(const SceneNode& sceneNode, int framebufferWidth, int framebufferHeight, float aspectRatio, glm::vec2& screenPosition) const;
     std::vector<OverlayLabel> buildOverlayLabels(int framebufferWidth, int framebufferHeight, float aspectRatio) const;
     void initializeScanDefaults();
@@ -67,6 +75,7 @@ private:
     bool scanInProgress() const;
     double scanElapsedSeconds() const;
     void rebuildLayout();
+    void selectFirstImageNode();
     void applyFilters();
     void clearFilters();
     void appendScanLog(std::string message);
@@ -82,13 +91,16 @@ private:
     DemoTheme theme_ = DemoTheme::NeonHacker;
     SceneMode sceneMode_ = SceneMode::Demo;
     RenderMode renderMode_ = RenderMode::SolidWireframe;
-    LabelMode labelMode_ = LabelMode::Important;
+    LabelMode labelMode_ = LabelMode::LimitedAll;
     bool presentationActive_ = false;
     PresentationCameraMode presentationMode_ = PresentationCameraMode::OrbitRoot;
     bool presentationPaused_ = false;
     float presentationSpeed_ = 1.0f;
     bool cleanHud_ = false;
     bool autoScanRequested_ = false;
+    bool selectFirstImageRequested_ = false;
+    bool dangerActionsEnabled_ = false;
+    bool dangerDeleteWarningAccepted_ = false;
     bool focusAnimationActive_ = false;
     glm::vec3 focusStartPosition_{};
     glm::vec3 focusEndPosition_{};
@@ -113,6 +125,11 @@ private:
     std::vector<std::string> scanLog_;
     SceneNodeId selectedSceneId_ = InvalidSceneNodeId;
     SceneNodeId hoveredSceneId_ = InvalidSceneNodeId;
+    FileNodeId imagePreviewFileNodeId_ = InvalidFileNodeId;
+    unsigned int imagePreviewTextureId_ = 0;
+    int imagePreviewWidth_ = 0;
+    int imagePreviewHeight_ = 0;
+    std::string imagePreviewStatus_;
     Hud hud_;
     Timer timer_;
     std::string glVersion_;
@@ -131,6 +148,9 @@ private:
     bool cleanHudToggleWasDown_ = false;
     bool screenshotWasDown_ = false;
     bool screenshotRequested_ = false;
+    bool scheduledScreenshotTaken_ = false;
+    double scheduledScreenshotSeconds_ = -1.0;
+    double scheduledQuitSeconds_ = -1.0;
     std::string screenshotStatus_;
     double lastClickTime_ = -10.0;
     SceneNodeId lastClickedSceneId_ = InvalidSceneNodeId;

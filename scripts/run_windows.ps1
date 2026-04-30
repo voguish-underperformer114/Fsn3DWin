@@ -5,7 +5,8 @@ param(
     [string]$Root = "",
     [int]$MaxDepth = -1,
     [int]$MaxNodes = -1,
-    [switch]$AutoScan
+    [switch]$AutoScan,
+    [switch]$SelectFirstImage
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,6 +30,9 @@ try {
     }
     if ($AutoScan) {
         $AppArgs += "--auto-scan"
+    }
+    if ($SelectFirstImage) {
+        $AppArgs += "--select-first-image"
     }
 
     & $Exe @AppArgs

@@ -17,24 +17,31 @@ It is intentionally read-only. It is not a file manager. It is built to look spe
 
 - Native Windows C++20 desktop app.
 - GPU instanced OpenGL rendering for thousands of file nodes.
-- Read-only `std::filesystem` metadata scanner.
+- Read-only `std::filesystem` metadata scanner by default.
+- Clear filename/folder labels, selected-name banner, and FSN-style hierarchy wires.
+- 3D photo preview billboard for selected image files.
 - Cinematic fly camera, presentation orbit, clean HUD mode, and screenshot hotkey.
 - Search and category filters for scanned file worlds.
+- Optional danger zone for opening files or moving a selected file to the Recycle Bin.
 - Neon Hacker, Jurassic SGI, and Clean Dark visual themes.
 - Portable release build, no installer required.
 
 ## Safety Model
 
-Fsn3DWin only reads filesystem metadata such as names, paths, sizes, types, and directory relationships. It does not open, execute, edit, rename, move, copy, or delete scanned files.
+Fsn3DWin starts in read-only browser mode. Normal scanning reads filesystem metadata such as names, paths, sizes, types, and directory relationships.
 
-The only app write path is the screenshot feature. Pressing `F12` saves a BMP file to the app-owned `screenshots/` folder in the current run directory. That folder is ignored by git.
+Selecting an image file can decode that image for an in-scene preview. This reads the selected image file only and does not modify it.
+
+Opening files and deleting files are disabled by default. The HUD danger zone must be explicitly enabled before the app can ask Windows to open a selected item. Moving a file to the Recycle Bin additionally requires a second warning checkbox and typing `DELETE`. Directory deletion is intentionally unavailable.
+
+The screenshot feature writes BMP files to the app-owned `screenshots/` folder in the current run directory. That folder is ignored by git.
 
 ## Download
 
 Use the latest GitHub release and download the portable Windows zip:
 
 ```text
-Fsn3DWin-0.1.0-windows-x64.zip
+Fsn3DWin-0.2.0-windows-x64.zip
 ```
 
 Extract it and run:
@@ -117,6 +124,12 @@ Start scanning immediately:
 .\build\Release\Fsn3DWin.exe --root "C:\Windows" --max-depth 3 --max-nodes 2500 --auto-scan
 ```
 
+Start a generic image-preview demo:
+
+```powershell
+.\build\Release\Fsn3DWin.exe --root "C:\Windows\Web" --max-depth 4 --max-nodes 700 --auto-scan --select-first-image
+```
+
 Or use the helper script:
 
 ```powershell
@@ -140,6 +153,8 @@ Or use the helper script:
 | `H` | Toggle clean HUD |
 | `F12` | Save screenshot to `screenshots/` |
 
+Danger actions are controlled from the HUD and are off by default.
+
 ## Command-Line Options
 
 ```text
@@ -147,6 +162,9 @@ Or use the helper script:
 --max-depth <N>     Initial maximum scan depth
 --max-nodes <N>     Initial maximum node count
 --auto-scan         Start a read-only scan immediately
+--select-first-image Select first image after scan for preview demos
+--screenshot-after <seconds> Save a screenshot after startup
+--quit-after <seconds> Close the app after startup
 --help              Show help
 ```
 
@@ -176,4 +194,6 @@ docs/screenshots/
 
 ## Project Scope
 
-Fsn3DWin is an epic visual browser, not a replacement for Windows Explorer. The goal is a safe, cinematic way to inspect the shape of a filesystem, make screenshots, and fly through a glowing data city.
+Fsn3DWin is an epic visual browser, not a replacement for Windows Explorer. The goal is a cinematic way to inspect the shape of a filesystem, preview visual assets, make screenshots, and fly through a glowing data city.
+
+The original SGI FSN was an experimental IRIX 3D filesystem navigator. It represented directories as hierarchy pedestals, files as boxes, and connected the structure with navigable wires. Fsn3DWin borrows that idea while adding modern Windows scanning, labels, image preview, and explicit safety gates for dangerous actions.

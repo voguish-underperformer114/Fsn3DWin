@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(Fsn3DWin
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "A cinematic 3D filesystem visualizer for Windows"
     LANGUAGES CXX
 )
@@ -24,6 +24,8 @@ add_executable(Fsn3DWin
     src/filesystem/FileNode.hpp
     src/filesystem/FileScanner.cpp
     src/filesystem/FileScanner.hpp
+    src/media/ImageLoader.cpp
+    src/media/ImageLoader.hpp
     src/scene/Camera.cpp
     src/scene/Camera.hpp
     src/scene/DemoScene.cpp
@@ -61,6 +63,14 @@ target_link_libraries(Fsn3DWin PRIVATE
     imgui::imgui
     OpenGL::GL
 )
+
+if (WIN32)
+    target_link_libraries(Fsn3DWin PRIVATE
+        ole32
+        shell32
+        windowscodecs
+    )
+endif()
 
 if (MSVC)
     target_compile_options(Fsn3DWin PRIVATE /W4 /permissive-)

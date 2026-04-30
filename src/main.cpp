@@ -19,6 +19,9 @@ void printUsage()
         << "  --max-depth <N>     Initial maximum scan depth\n"
         << "  --max-nodes <N>     Initial maximum node count\n"
         << "  --auto-scan         Start a read-only scan immediately\n"
+        << "  --select-first-image Select first image after scan for preview demos\n"
+        << "  --screenshot-after <seconds> Save a screenshot after startup\n"
+        << "  --quit-after <seconds> Close the app after startup\n"
         << "  --help              Show this help\n";
 }
 
@@ -64,6 +67,20 @@ AppOptions parseOptions(int argc, char** argv)
             options.maxNodes = static_cast<std::size_t>(std::stoull(*value));
         } else if (arg == "--auto-scan") {
             options.autoScan = true;
+        } else if (arg == "--select-first-image") {
+            options.selectFirstImage = true;
+        } else if (arg == "--screenshot-after") {
+            const std::optional<std::string> value = readOptionValue(index, argc, argv, arg);
+            if (!value.has_value()) {
+                throw std::runtime_error("Invalid --screenshot-after argument");
+            }
+            options.screenshotAfterSeconds = std::stod(*value);
+        } else if (arg == "--quit-after") {
+            const std::optional<std::string> value = readOptionValue(index, argc, argv, arg);
+            if (!value.has_value()) {
+                throw std::runtime_error("Invalid --quit-after argument");
+            }
+            options.quitAfterSeconds = std::stod(*value);
         } else {
             throw std::runtime_error("Unknown argument: " + arg);
         }
