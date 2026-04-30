@@ -15,6 +15,22 @@ const std::vector<DemoBlock>& DemoScene::blocks() const
 DemoPalette DemoScene::palette(DemoTheme theme)
 {
     switch (theme) {
+    case DemoTheme::AmberTerminal:
+        return {
+            .background = glm::vec3(0.004f, 0.006f, 0.003f),
+            .gridTint = glm::vec4(1.0f, 0.74f, 0.16f, 1.0f),
+            .scanWave = glm::vec4(1.0f, 0.12f, 0.04f, 0.40f),
+            .root = glm::vec4(1.0f, 0.88f, 0.22f, 1.0f),
+            .directoryA = glm::vec4(0.92f, 0.98f, 0.28f, 1.0f),
+            .directoryB = glm::vec4(0.42f, 1.0f, 0.36f, 1.0f),
+            .directoryC = glm::vec4(1.0f, 0.56f, 0.12f, 1.0f),
+            .fileA = glm::vec4(1.0f, 0.72f, 0.18f, 1.0f),
+            .fileB = glm::vec4(0.72f, 1.0f, 0.40f, 1.0f),
+            .fileC = glm::vec4(1.0f, 0.94f, 0.55f, 1.0f),
+            .core = glm::vec4(1.0f, 0.18f, 0.08f, 1.0f),
+            .pulse = glm::vec4(1.0f, 0.38f, 0.06f, 1.0f),
+            .gridIntensity = 1.56f,
+        };
     case DemoTheme::JurassicSgi:
         return {
             .background = glm::vec3(0.003f, 0.010f, 0.020f),
@@ -95,6 +111,8 @@ glm::vec4 DemoScene::colorFor(const DemoPalette& palette, DemoBlockCategory cate
 const char* DemoScene::themeName(DemoTheme theme)
 {
     switch (theme) {
+    case DemoTheme::AmberTerminal:
+        return "Amber Terminal";
     case DemoTheme::JurassicSgi:
         return "Jurassic SGI";
     case DemoTheme::NeonHacker:

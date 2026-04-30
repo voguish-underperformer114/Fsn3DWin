@@ -6,7 +6,8 @@
 #include <vector>
 
 enum class DemoTheme {
-    JurassicSgi = 0,
+    AmberTerminal = 0,
+    JurassicSgi,
     NeonHacker,
     CleanDark,
 };

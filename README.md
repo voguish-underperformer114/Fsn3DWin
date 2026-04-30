@@ -5,7 +5,7 @@
 ![OpenGL](https://img.shields.io/badge/OpenGL-4.1%2B-7c3aed)
 ![Status](https://img.shields.io/badge/status-public_preview-00d1b2)
 
-Fsn3DWin is a cinematic 3D filesystem visualizer for Windows. It turns a folder tree into a glowing neon file city with directory towers, file blocks, scan waves, labels, selection beacons, and a presentation mode inspired by SGI FSN and movie-style hacker interfaces.
+Fsn3DWin is a cinematic 3D filesystem visualizer for Windows. It turns a folder tree into an old-school terminal file city with directory towers, file blocks, scan waves, readable labels, selection beacons, and a presentation mode inspired by SGI FSN and movie-style hacker interfaces.
 
 It is intentionally read-only. It is not a file manager. It is built to look spectacular while safely exploring filesystem metadata.
 
@@ -23,7 +23,7 @@ It is intentionally read-only. It is not a file manager. It is built to look spe
 - Cinematic fly camera, presentation orbit, clean HUD mode, and screenshot hotkey.
 - Search and category filters for scanned file worlds.
 - Optional danger zone for opening files or moving a selected file to the Recycle Bin.
-- Neon Hacker, Jurassic SGI, and Clean Dark visual themes.
+- Amber Terminal, Neon Hacker, Jurassic SGI, and Clean Dark visual themes.
 - Portable release build, no installer required.
 
 ## Safety Model
@@ -41,7 +41,7 @@ The screenshot feature writes BMP files to the app-owned `screenshots/` folder i
 Use the latest GitHub release and download the portable Windows zip:
 
 ```text
-Fsn3DWin-0.2.0-windows-x64.zip
+Fsn3DWin-0.3.0-windows-x64.zip
 ```
 
 Extract it and run:

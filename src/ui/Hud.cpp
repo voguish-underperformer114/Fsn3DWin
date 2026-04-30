@@ -9,7 +9,7 @@
 #include <filesystem>
 
 namespace {
-constexpr int ThemeCount = 3;
+constexpr int ThemeCount = 4;
 constexpr int RenderModeCount = 3;
 constexpr int LayoutModeCount = 3;
 constexpr int SizeEmphasisCount = 2;
@@ -19,30 +19,30 @@ ImVec4 legendColor(FileCategory category)
 {
     switch (category) {
     case FileCategory::Directory:
-        return ImVec4(0.10f, 0.95f, 0.82f, 1.0f);
+        return ImVec4(1.0f, 0.80f, 0.18f, 1.0f);
     case FileCategory::Source:
-        return ImVec4(0.20f, 0.72f, 1.0f, 1.0f);
+        return ImVec4(0.45f, 1.0f, 0.36f, 1.0f);
     case FileCategory::Document:
-        return ImVec4(0.95f, 0.88f, 0.35f, 1.0f);
+        return ImVec4(1.0f, 0.93f, 0.42f, 1.0f);
     case FileCategory::Image:
-        return ImVec4(1.0f, 0.35f, 0.82f, 1.0f);
+        return ImVec4(1.0f, 0.52f, 0.12f, 1.0f);
     case FileCategory::Audio:
-        return ImVec4(0.58f, 0.38f, 1.0f, 1.0f);
+        return ImVec4(0.92f, 0.84f, 0.22f, 1.0f);
     case FileCategory::Video:
-        return ImVec4(1.0f, 0.52f, 0.22f, 1.0f);
+        return ImVec4(1.0f, 0.22f, 0.08f, 1.0f);
     case FileCategory::Archive:
-        return ImVec4(0.62f, 1.0f, 0.35f, 1.0f);
+        return ImVec4(0.72f, 1.0f, 0.24f, 1.0f);
     case FileCategory::Executable:
-        return ImVec4(1.0f, 0.18f, 0.26f, 1.0f);
+        return ImVec4(1.0f, 0.10f, 0.04f, 1.0f);
     case FileCategory::System:
-        return ImVec4(0.82f, 0.92f, 1.0f, 1.0f);
+        return ImVec4(1.0f, 0.76f, 0.28f, 1.0f);
     case FileCategory::Data:
-        return ImVec4(0.32f, 1.0f, 0.92f, 1.0f);
+        return ImVec4(0.58f, 1.0f, 0.44f, 1.0f);
     case FileCategory::Error:
         return ImVec4(1.0f, 0.08f, 0.08f, 1.0f);
     case FileCategory::Other:
     default:
-        return ImVec4(0.62f, 0.72f, 0.86f, 1.0f);
+        return ImVec4(0.86f, 0.68f, 0.34f, 1.0f);
     }
 }
 
@@ -111,6 +111,28 @@ std::string compactText(const std::string& text, std::size_t maxLength)
     return text.substr(0, maxLength - 3) + "...";
 }
 
+bool overlapsExistingRect(const std::vector<ImVec4>& rects, const ImVec4& candidate, float padding)
+{
+    return std::any_of(rects.begin(), rects.end(), [&](const ImVec4& rect) {
+        return candidate.x < rect.z + padding &&
+            candidate.z > rect.x - padding &&
+            candidate.y < rect.w + padding &&
+            candidate.w > rect.y - padding;
+    });
+}
+
+void setReadableHudWindowSize(float preferredWidth)
+{
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const float availableWidth = std::max(280.0f, display.x - 36.0f);
+    const float minWidth = std::min(preferredWidth, availableWidth);
+    const float maxHeight = std::max(260.0f, display.y - 36.0f);
+    ImGui::SetNextWindowSize(ImVec2(preferredWidth, 0.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(
+        ImVec2(minWidth, 0.0f),
+        ImVec2(availableWidth, maxHeight));
+}
+
 void drawSelectedMetadata(const SceneNode* selectedSceneNode, const FileNode* selectedFileNode)
 {
     if (selectedSceneNode == nullptr || selectedFileNode == nullptr) {
@@ -163,17 +185,17 @@ void drawActiveNamePlate(const HudState& state, const FileNode* selectedFileNode
     const ImVec2 display = ImGui::GetIO().DisplaySize;
     const ImVec2 titleSize = ImGui::CalcTextSize(title.c_str());
     const ImVec2 subtitleSize = ImGui::CalcTextSize(subtitle.c_str());
-    const float width = std::min(std::max(titleSize.x, subtitleSize.x) + 34.0f, display.x - 80.0f);
-    const float height = subtitle.empty() ? 34.0f : 56.0f;
+    const float width = std::min(std::max(titleSize.x, subtitleSize.x) + 42.0f, display.x - 60.0f);
+    const float height = subtitle.empty() ? 42.0f : 70.0f;
     const ImVec2 min(display.x * 0.5f - width * 0.5f, 20.0f);
     const ImVec2 max(min.x + width, min.y + height);
-    const ImU32 border = selected ? IM_COL32(255, 230, 80, 235) : IM_COL32(90, 245, 255, 220);
+    const ImU32 border = selected ? IM_COL32(255, 226, 66, 240) : IM_COL32(255, 118, 36, 220);
 
-    drawList->AddRectFilled(min, max, IM_COL32(2, 8, 15, 210), 5.0f);
+    drawList->AddRectFilled(min, max, IM_COL32(5, 6, 2, 226), 5.0f);
     drawList->AddRect(min, max, border, 5.0f, 0, 1.4f);
-    drawList->AddText(ImVec2(min.x + 17.0f, min.y + 9.0f), selected ? IM_COL32(255, 242, 170, 255) : IM_COL32(210, 255, 255, 255), title.c_str());
+    drawList->AddText(ImVec2(min.x + 21.0f, min.y + 11.0f), selected ? IM_COL32(255, 244, 150, 255) : IM_COL32(255, 198, 88, 255), title.c_str());
     if (!subtitle.empty()) {
-        drawList->AddText(ImVec2(min.x + 17.0f, min.y + 31.0f), IM_COL32(160, 235, 255, 230), subtitle.c_str());
+        drawList->AddText(ImVec2(min.x + 21.0f, min.y + 40.0f), IM_COL32(192, 255, 138, 235), subtitle.c_str());
     }
 }
 
@@ -185,7 +207,20 @@ void drawScreenLabels(const HudState& state)
 
     ImDrawList* drawList = ImGui::GetForegroundDrawList();
     const ImVec2 display = ImGui::GetIO().DisplaySize;
-    const ImVec2 padding(10.0f, 6.0f);
+    const ImVec2 padding(12.0f, 8.0f);
+    std::vector<ImVec4> usedRects;
+    std::vector<ImVec4> blockedRects;
+    usedRects.reserve(state.overlayLabels.size());
+    blockedRects.reserve(3);
+
+    const float hudWidth = std::min(std::max(0.0f, display.x - 16.0f), state.cleanHud ? 520.0f : 540.0f);
+    const float hudHeight = state.cleanHud ? 190.0f : display.y - 18.0f;
+    blockedRects.push_back(ImVec4(12.0f, 12.0f, hudWidth, hudHeight));
+
+    if (display.x > 720.0f) {
+        const float plateHalfWidth = std::min(430.0f, display.x * 0.34f);
+        blockedRects.push_back(ImVec4(display.x * 0.5f - plateHalfWidth, 8.0f, display.x * 0.5f + plateHalfWidth, 104.0f));
+    }
 
     for (const OverlayLabel& label : state.overlayLabels) {
         if (label.text.empty()) {
@@ -197,16 +232,31 @@ void drawScreenLabels(const HudState& state)
         const ImVec2 anchor(label.position.x, label.position.y);
         ImVec2 min(anchor.x - textSize.x * 0.5f - padding.x, anchor.y - textSize.y - padding.y * 2.0f);
         ImVec2 max(anchor.x + textSize.x * 0.5f + padding.x, anchor.y);
-        const float shiftX = std::clamp(min.x, 8.0f, std::max(8.0f, display.x - (max.x - min.x) - 8.0f)) - min.x;
+        const float labelWidth = max.x - min.x;
+        const float labelHeight = max.y - min.y;
+        const float shiftX = std::clamp(min.x, 8.0f, std::max(8.0f, display.x - labelWidth - 8.0f)) - min.x;
+        const float shiftY = std::clamp(min.y, 8.0f, std::max(8.0f, display.y - labelHeight - 82.0f)) - min.y;
         min.x += shiftX;
         max.x += shiftX;
-        const ImU32 borderColor = label.accent ? IM_COL32(255, 230, 95, 235) : IM_COL32(120, 255, 230, 210);
+        min.y += shiftY;
+        max.y += shiftY;
 
-        drawList->AddRectFilled(min, max, IM_COL32(3, 10, 20, label.accent ? 235 : 205), 4.0f);
+        const ImVec4 rect(min.x, min.y, max.x, max.y);
+        if (overlapsExistingRect(blockedRects, rect, 4.0f)) {
+            continue;
+        }
+        if (!label.accent && overlapsExistingRect(usedRects, rect, 6.0f)) {
+            continue;
+        }
+        usedRects.push_back(rect);
+
+        const ImU32 borderColor = label.accent ? IM_COL32(255, 226, 70, 238) : IM_COL32(255, 150, 48, 220);
+
+        drawList->AddRectFilled(min, max, IM_COL32(5, 7, 2, label.accent ? 238 : 216), 4.0f);
         drawList->AddRect(min, max, borderColor, 4.0f, 0, label.accent ? 1.6f : 1.1f);
         drawList->AddLine(ImVec2(anchor.x, max.y), ImVec2(anchor.x, max.y + 10.0f), borderColor, 1.0f);
         drawList->AddText(ImVec2(min.x + padding.x + 1.0f, min.y + padding.y + 1.0f), IM_COL32(0, 0, 0, 210), text.c_str());
-        drawList->AddText(ImVec2(min.x + padding.x, min.y + padding.y), IM_COL32(238, 255, 248, 255), text.c_str());
+        drawList->AddText(ImVec2(min.x + padding.x, min.y + padding.y), label.accent ? IM_COL32(255, 245, 150, 255) : IM_COL32(240, 255, 166, 255), text.c_str());
     }
 }
 
@@ -295,7 +345,7 @@ void drawHoverTooltip(const HudState& state)
     }
 
     ImDrawList* drawList = ImGui::GetForegroundDrawList();
-    const ImVec2 padding(9.0f, 6.0f);
+    const ImVec2 padding(12.0f, 8.0f);
     const ImVec2 origin(state.hoverTooltipPosition.x + 18.0f, state.hoverTooltipPosition.y + 18.0f);
     const char* lines[] = {
         state.hoverName.c_str(),
@@ -313,15 +363,15 @@ void drawHoverTooltip(const HudState& state)
 
     const ImVec2 min = origin;
     const ImVec2 max(origin.x + size.x + padding.x * 2.0f, origin.y + size.y + padding.y * 2.0f);
-    drawList->AddRectFilled(min, max, IM_COL32(2, 9, 18, 225), 5.0f);
-    drawList->AddRect(min, max, IM_COL32(80, 220, 255, 230), 5.0f);
+    drawList->AddRectFilled(min, max, IM_COL32(5, 7, 2, 232), 5.0f);
+    drawList->AddRect(min, max, IM_COL32(255, 148, 36, 232), 5.0f);
 
     float y = min.y + padding.y;
-    drawList->AddText(ImVec2(min.x + padding.x, y), IM_COL32(240, 255, 245, 255), lines[0]);
+    drawList->AddText(ImVec2(min.x + padding.x, y), IM_COL32(255, 236, 128, 255), lines[0]);
     y += ImGui::GetTextLineHeight() + 3.0f;
-    drawList->AddText(ImVec2(min.x + padding.x, y), IM_COL32(150, 240, 255, 245), lines[1]);
+    drawList->AddText(ImVec2(min.x + padding.x, y), IM_COL32(184, 255, 128, 245), lines[1]);
     y += ImGui::GetTextLineHeight() + 3.0f;
-    drawList->AddText(ImVec2(min.x + padding.x, y), IM_COL32(255, 222, 115, 245), lines[2]);
+    drawList->AddText(ImVec2(min.x + padding.x, y), IM_COL32(255, 126, 66, 245), lines[2]);
 }
 
 void drawCornerBracket(ImDrawList* drawList, const ImVec2& a, float size, bool right, bool bottom, ImU32 color)
@@ -337,10 +387,10 @@ void drawOverlayEffects(const HudState& state, const FileScanOptions& scanOption
     ImDrawList* drawList = ImGui::GetForegroundDrawList();
     const ImVec2 display = ImGui::GetIO().DisplaySize;
     const float pulse = 0.5f + 0.5f * std::sin(static_cast<float>(state.totalSeconds) * 2.3f);
-    const ImU32 bracketColor = IM_COL32(80, 255, 220, static_cast<int>(135 + pulse * 70));
+    const ImU32 bracketColor = IM_COL32(255, 154, 36, static_cast<int>(140 + pulse * 75));
 
     for (float y = 0.0f; y < display.y; y += 4.0f) {
-        drawList->AddLine(ImVec2(0.0f, y), ImVec2(display.x, y), IM_COL32(120, 255, 220, 8), 1.0f);
+        drawList->AddLine(ImVec2(0.0f, y), ImVec2(display.x, y), IM_COL32(255, 198, 88, 9), 1.0f);
     }
 
     const float margin = 18.0f;
@@ -351,18 +401,18 @@ void drawOverlayEffects(const HudState& state, const FileScanOptions& scanOption
     drawCornerBracket(drawList, ImVec2(display.x - margin, display.y - margin), bracket, true, true, bracketColor);
 
     const std::string rootPath = "ROOT: " + pathToString(scanOptions.rootPath);
-    drawList->AddText(ImVec2(24.0f, display.y - 56.0f), IM_COL32(160, 245, 255, 220), rootPath.c_str());
-    drawList->AddText(ImVec2(24.0f, display.y - 34.0f), IM_COL32(255, 220, 110, 230), "READ-ONLY METADATA MODE // NO OPEN // NO EXECUTE // NO DELETE");
+    drawList->AddText(ImVec2(24.0f, display.y - 62.0f), IM_COL32(216, 255, 138, 225), rootPath.c_str());
+    drawList->AddText(ImVec2(24.0f, display.y - 36.0f), IM_COL32(255, 222, 96, 235), "SAFE MODE DEFAULT // OPEN+DELETE REQUIRE DANGER WARNINGS");
 
     if (state.scanState == FileScanState::Scanning || state.scanState == FileScanState::CancelRequested) {
         const float sweep = std::fmod(static_cast<float>(state.totalSeconds) * 220.0f, display.x + 260.0f) - 130.0f;
         drawList->AddRectFilled(
             ImVec2(sweep - 80.0f, 0.0f),
             ImVec2(sweep + 80.0f, display.y),
-            IM_COL32(70, 255, 220, 22));
+            IM_COL32(255, 80, 24, 24));
         drawList->AddText(
             ImVec2(display.x * 0.5f - 118.0f, 28.0f),
-            IM_COL32(150, 255, 225, 235),
+            IM_COL32(255, 220, 100, 238),
             state.scanState == FileScanState::CancelRequested ? "CANCEL REQUESTED // DRAINING WORKER" : "INDEXING SECTORS // READ-ONLY SCAN");
     }
 
@@ -376,11 +426,11 @@ void drawOverlayEffects(const HudState& state, const FileScanOptions& scanOption
         return;
     }
 
-    const ImVec2 logMin(display.x - 360.0f, display.y - 158.0f);
+    const ImVec2 logMin(display.x - 430.0f, display.y - 188.0f);
     const ImVec2 logMax(display.x - 24.0f, display.y - 28.0f);
-    drawList->AddRectFilled(logMin, logMax, IM_COL32(2, 8, 15, 160), 4.0f);
-    drawList->AddRect(logMin, logMax, IM_COL32(70, 210, 255, 130), 4.0f);
-    drawList->AddText(ImVec2(logMin.x + 10.0f, logMin.y + 8.0f), IM_COL32(120, 255, 220, 220), "SCAN LOG");
+    drawList->AddRectFilled(logMin, logMax, IM_COL32(4, 6, 2, 176), 4.0f);
+    drawList->AddRect(logMin, logMax, IM_COL32(255, 134, 32, 148), 4.0f);
+    drawList->AddText(ImVec2(logMin.x + 12.0f, logMin.y + 10.0f), IM_COL32(255, 206, 88, 228), "SCAN LOG");
 
     char fallbackCount[80]{};
     if (useFallbackLog) {
@@ -389,7 +439,7 @@ void drawOverlayEffects(const HudState& state, const FileScanOptions& scanOption
 
     const std::size_t logSize = useFallbackLog ? 2U : (log != nullptr ? log->size() : 0U);
     const std::size_t first = logSize > 5 ? logSize - 5 : 0;
-    float y = logMin.y + 30.0f;
+    float y = logMin.y + 38.0f;
     for (std::size_t index = first; index < logSize; ++index) {
         const char* line = "";
         if (useFallbackLog) {
@@ -398,8 +448,8 @@ void drawOverlayEffects(const HudState& state, const FileScanOptions& scanOption
             line = (*log)[index].c_str();
         }
 
-        drawList->AddText(ImVec2(logMin.x + 10.0f, y), IM_COL32(185, 245, 255, 210), line);
-        y += 18.0f;
+        drawList->AddText(ImVec2(logMin.x + 12.0f, y), IM_COL32(210, 255, 152, 214), line);
+        y += ImGui::GetTextLineHeight() + 4.0f;
     }
 }
 }
@@ -457,7 +507,7 @@ HudAction Hud::draw(
 
     if (cleanHud) {
         ImGui::SetNextWindowPos(ImVec2(18.0f, 18.0f), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(380.0f, 0.0f), ImGuiCond_FirstUseEver);
+        setReadableHudWindowSize(470.0f);
         ImGui::Begin("Fsn3DWin", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
         ImGui::TextUnformatted("Fsn3DWin");
         ImGui::Text("Version %s", state.appVersion.c_str());
@@ -473,14 +523,14 @@ HudAction Hud::draw(
         ImGui::End();
 
         drawOverlayEffects(state, scanOptions, scanResult);
-        drawActiveNamePlate(state, selectedFileNode);
         drawScreenLabels(state);
+        drawActiveNamePlate(state, selectedFileNode);
         drawHoverTooltip(state);
         return action;
     }
 
     ImGui::SetNextWindowPos(ImVec2(18.0f, 18.0f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(360.0f, 0.0f), ImGuiCond_FirstUseEver);
+    setReadableHudWindowSize(480.0f);
 
     ImGui::Begin("Fsn3DWin", nullptr, ImGuiWindowFlags_NoCollapse);
     ImGui::TextUnformatted("Fsn3DWin");
@@ -768,8 +818,8 @@ HudAction Hud::draw(
 
     ImGui::End();
     drawOverlayEffects(state, scanOptions, scanResult);
-    drawActiveNamePlate(state, selectedFileNode);
     drawScreenLabels(state);
+    drawActiveNamePlate(state, selectedFileNode);
     drawHoverTooltip(state);
 
     return action;

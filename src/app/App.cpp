@@ -49,7 +49,7 @@ constexpr int WindowHeight = 720;
 constexpr const char* WindowTitle = "Fsn3DWin";
 constexpr const char* ImGuiGlslVersion = "#version 410";
 #ifndef FSN3DWIN_VERSION
-#define FSN3DWIN_VERSION "0.1.0"
+#define FSN3DWIN_VERSION "0.3.0"
 #endif
 
 bool keyPressedOnce(GLFWwindow* window, int key, bool& wasDown)
@@ -271,6 +271,10 @@ void App::initImGui()
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
 
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.FontGlobalScale = 1.22f;
+
     ImGuiStyle& style = ImGui::GetStyle();
     style.WindowRounding = 5.0f;
     style.ChildRounding = 4.0f;
@@ -280,30 +284,30 @@ void App::initImGui()
     style.ScrollbarRounding = 4.0f;
     style.WindowBorderSize = 1.0f;
     style.FrameBorderSize = 1.0f;
-    style.ScrollbarSize = 12.0f;
-    style.ItemSpacing = ImVec2(8.0f, 6.0f);
-    style.WindowPadding = ImVec2(12.0f, 10.0f);
+    style.ScrollbarSize = 15.0f;
+    style.ItemSpacing = ImVec2(10.0f, 8.0f);
+    style.WindowPadding = ImVec2(14.0f, 12.0f);
+    style.FramePadding = ImVec2(9.0f, 6.0f);
 
     ImVec4* colors = style.Colors;
-    colors[ImGuiCol_WindowBg] = ImVec4(0.015f, 0.035f, 0.060f, 0.91f);
-    colors[ImGuiCol_Border] = ImVec4(0.22f, 0.88f, 0.95f, 0.38f);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.035f, 0.085f, 0.120f, 0.95f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.055f, 0.170f, 0.210f, 0.95f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.075f, 0.230f, 0.270f, 0.95f);
-    colors[ImGuiCol_TitleBg] = ImVec4(0.012f, 0.040f, 0.065f, 1.0f);
-    colors[ImGuiCol_TitleBgActive] = ImVec4(0.025f, 0.120f, 0.155f, 1.0f);
-    colors[ImGuiCol_CheckMark] = ImVec4(0.30f, 1.0f, 0.90f, 1.0f);
-    colors[ImGuiCol_SliderGrab] = ImVec4(0.24f, 0.95f, 0.90f, 1.0f);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(1.0f, 0.86f, 0.32f, 1.0f);
-    colors[ImGuiCol_Button] = ImVec4(0.035f, 0.150f, 0.185f, 0.95f);
-    colors[ImGuiCol_ButtonHovered] = ImVec4(0.070f, 0.250f, 0.300f, 1.0f);
-    colors[ImGuiCol_ButtonActive] = ImVec4(0.16f, 0.50f, 0.52f, 1.0f);
-    colors[ImGuiCol_Header] = ImVec4(0.035f, 0.180f, 0.205f, 0.82f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(0.060f, 0.280f, 0.320f, 0.95f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(0.12f, 0.42f, 0.44f, 1.0f);
-
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    colors[ImGuiCol_Text] = ImVec4(1.0f, 0.88f, 0.48f, 1.0f);
+    colors[ImGuiCol_TextDisabled] = ImVec4(0.58f, 0.48f, 0.24f, 1.0f);
+    colors[ImGuiCol_WindowBg] = ImVec4(0.012f, 0.016f, 0.008f, 0.94f);
+    colors[ImGuiCol_Border] = ImVec4(1.0f, 0.68f, 0.16f, 0.52f);
+    colors[ImGuiCol_FrameBg] = ImVec4(0.060f, 0.055f, 0.020f, 0.96f);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.145f, 0.105f, 0.025f, 0.96f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(0.210f, 0.130f, 0.030f, 1.0f);
+    colors[ImGuiCol_TitleBg] = ImVec4(0.030f, 0.028f, 0.012f, 1.0f);
+    colors[ImGuiCol_TitleBgActive] = ImVec4(0.155f, 0.055f, 0.020f, 1.0f);
+    colors[ImGuiCol_CheckMark] = ImVec4(1.0f, 0.85f, 0.20f, 1.0f);
+    colors[ImGuiCol_SliderGrab] = ImVec4(1.0f, 0.68f, 0.14f, 1.0f);
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(1.0f, 0.18f, 0.08f, 1.0f);
+    colors[ImGuiCol_Button] = ImVec4(0.170f, 0.090f, 0.020f, 0.96f);
+    colors[ImGuiCol_ButtonHovered] = ImVec4(0.320f, 0.150f, 0.030f, 1.0f);
+    colors[ImGuiCol_ButtonActive] = ImVec4(0.620f, 0.110f, 0.030f, 1.0f);
+    colors[ImGuiCol_Header] = ImVec4(0.165f, 0.105f, 0.025f, 0.88f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.320f, 0.160f, 0.030f, 0.96f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(0.560f, 0.120f, 0.030f, 1.0f);
 
     if (!ImGui_ImplGlfw_InitForOpenGL(window_, true)) {
         throw std::runtime_error("Failed to initialize ImGui GLFW backend");

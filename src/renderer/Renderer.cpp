@@ -351,7 +351,7 @@ void Renderer::renderScene(
     cubeRenderer_.render(view, projection, camera.position(), palette.background, scanWaveInstances_, RenderMode::Solid);
 
     if (sceneMode == SceneMode::RealScan && sceneNodes != nullptr) {
-        renderHierarchyLinks(camera, aspectRatio, *sceneNodes, glm::vec4(0.10f, 0.98f, 1.0f, 0.34f));
+        renderHierarchyLinks(camera, aspectRatio, *sceneNodes, glm::vec4(1.0f, 0.68f, 0.14f, 0.42f));
     }
 
     sceneInstances_.clear();
@@ -465,21 +465,21 @@ void Renderer::renderScene(
                         std::max(node.scale.x * markerScale, selected ? 2.1f : 1.55f),
                         0.035f,
                         std::max(node.scale.z * markerScale, selected ? 2.1f : 1.55f)),
-                    selected ? glm::vec4(1.0f, 0.96f, 0.42f, 0.92f) : glm::vec4(0.28f, 1.0f, 1.0f, 0.82f),
+                    selected ? glm::vec4(1.0f, 0.94f, 0.32f, 0.92f) : glm::vec4(0.95f, 1.0f, 0.34f, 0.82f),
                     selected ? 1.15f : 0.68f,
                     static_cast<float>(node.category)));
 
                 accentInstances_.push_back(makeCubeInstance(
                     glm::vec3(node.position.x, node.position.y + node.scale.y * 0.62f + (selected ? 2.25f : 1.35f), node.position.z),
                     glm::vec3(0.07f, selected ? 3.8f : 2.2f, 0.07f),
-                    selected ? glm::vec4(1.0f, 0.96f, 0.42f, 0.95f) : glm::vec4(0.28f, 1.0f, 1.0f, 0.82f),
+                    selected ? glm::vec4(1.0f, 0.94f, 0.32f, 0.95f) : glm::vec4(0.95f, 1.0f, 0.34f, 0.82f),
                     selected ? 1.35f : 0.75f,
                     static_cast<float>(node.category)));
 
                 accentInstances_.push_back(makeCubeInstance(
                     node.position,
                     node.scale * glm::vec3(selected ? 1.18f : 1.10f),
-                    selected ? glm::vec4(1.0f, 0.96f, 0.42f, 1.0f) : glm::vec4(0.28f, 1.0f, 1.0f, 1.0f),
+                    selected ? glm::vec4(1.0f, 0.94f, 0.32f, 1.0f) : glm::vec4(0.95f, 1.0f, 0.34f, 1.0f),
                     selected ? 1.25f : 0.72f,
                     static_cast<float>(node.category)));
             }
@@ -515,8 +515,8 @@ void Renderer::buildSceneGeometry()
 
         const bool major = i % 5 == 0;
         const glm::vec4 color = major
-            ? glm::vec4(0.0f, 0.95f, 1.0f, 0.62f)
-            : glm::vec4(0.0f, 0.58f, 0.95f, 0.28f);
+            ? glm::vec4(1.0f, 0.70f, 0.12f, 0.62f)
+            : glm::vec4(0.62f, 1.0f, 0.28f, 0.24f);
 
         const float offset = static_cast<float>(i);
         addLine(
@@ -531,9 +531,9 @@ void Renderer::buildSceneGeometry()
             color);
     }
 
-    addLine(gridVertices, glm::vec3(-gridExtent, 0.02f, 0.0f), glm::vec3(gridExtent, 0.02f, 0.0f), glm::vec4(1.0f, 0.12f, 0.22f, 0.95f));
-    addLine(gridVertices, glm::vec3(0.0f, 0.02f, -gridExtent), glm::vec3(0.0f, 0.02f, gridExtent), glm::vec4(0.2f, 0.45f, 1.0f, 0.95f));
-    addLine(gridVertices, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec4(0.22f, 1.0f, 0.35f, 0.95f));
+    addLine(gridVertices, glm::vec3(-gridExtent, 0.02f, 0.0f), glm::vec3(gridExtent, 0.02f, 0.0f), glm::vec4(1.0f, 0.12f, 0.04f, 0.96f));
+    addLine(gridVertices, glm::vec3(0.0f, 0.02f, -gridExtent), glm::vec3(0.0f, 0.02f, gridExtent), glm::vec4(1.0f, 0.84f, 0.18f, 0.96f));
+    addLine(gridVertices, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec4(0.54f, 1.0f, 0.26f, 0.96f));
 
     uploadVertices(gridVao_, gridVbo_, gridVertices);
     gridVertexCount_ = static_cast<int>(gridVertices.size());

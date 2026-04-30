@@ -88,7 +88,7 @@ private:
     Renderer renderer_;
     Camera camera_;
     DemoScene demoScene_;
-    DemoTheme theme_ = DemoTheme::NeonHacker;
+    DemoTheme theme_ = DemoTheme::AmberTerminal;
     SceneMode sceneMode_ = SceneMode::Demo;
     RenderMode renderMode_ = RenderMode::SolidWireframe;
     LabelMode labelMode_ = LabelMode::LimitedAll;

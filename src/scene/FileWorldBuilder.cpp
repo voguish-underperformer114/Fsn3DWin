@@ -18,30 +18,30 @@ glm::vec4 categoryColor(FileCategory category)
 {
     switch (category) {
     case FileCategory::Directory:
-        return glm::vec4(0.10f, 0.95f, 0.82f, 1.0f);
+        return glm::vec4(1.0f, 0.80f, 0.18f, 1.0f);
     case FileCategory::Source:
-        return glm::vec4(0.20f, 0.72f, 1.0f, 1.0f);
+        return glm::vec4(0.45f, 1.0f, 0.36f, 1.0f);
     case FileCategory::Document:
-        return glm::vec4(0.95f, 0.88f, 0.35f, 1.0f);
+        return glm::vec4(1.0f, 0.93f, 0.42f, 1.0f);
     case FileCategory::Image:
-        return glm::vec4(1.0f, 0.35f, 0.82f, 1.0f);
+        return glm::vec4(1.0f, 0.52f, 0.12f, 1.0f);
     case FileCategory::Audio:
-        return glm::vec4(0.58f, 0.38f, 1.0f, 1.0f);
+        return glm::vec4(0.92f, 0.84f, 0.22f, 1.0f);
     case FileCategory::Video:
-        return glm::vec4(1.0f, 0.52f, 0.22f, 1.0f);
+        return glm::vec4(1.0f, 0.22f, 0.08f, 1.0f);
     case FileCategory::Archive:
-        return glm::vec4(0.62f, 1.0f, 0.35f, 1.0f);
+        return glm::vec4(0.72f, 1.0f, 0.24f, 1.0f);
     case FileCategory::Executable:
-        return glm::vec4(1.0f, 0.18f, 0.26f, 1.0f);
+        return glm::vec4(1.0f, 0.10f, 0.04f, 1.0f);
     case FileCategory::System:
-        return glm::vec4(0.82f, 0.92f, 1.0f, 1.0f);
+        return glm::vec4(1.0f, 0.76f, 0.28f, 1.0f);
     case FileCategory::Data:
-        return glm::vec4(0.32f, 1.0f, 0.92f, 1.0f);
+        return glm::vec4(0.58f, 1.0f, 0.44f, 1.0f);
     case FileCategory::Error:
         return glm::vec4(1.0f, 0.08f, 0.08f, 1.0f);
     case FileCategory::Other:
     default:
-        return glm::vec4(0.62f, 0.72f, 0.86f, 1.0f);
+        return glm::vec4(0.86f, 0.68f, 0.34f, 1.0f);
     }
 }
 
@@ -389,7 +389,7 @@ FileWorldLayout FileWorldBuilder::build(const FileScanResult& scanResult, const 
     rootNode.sourceFileNodeId = root.id;
     rootNode.position = glm::vec3(0.0f, rootScale.y * 0.5f, 0.0f);
     rootNode.scale = rootScale;
-    rootNode.color = glm::vec4(0.08f, 1.0f, 1.0f, 1.0f);
+    rootNode.color = glm::vec4(1.0f, 0.88f, 0.20f, 1.0f);
     rootNode.category = root.category;
     rootNode.label = root.name;
     rootNode.bounds = makeAabb(rootNode.position, rootNode.scale);
