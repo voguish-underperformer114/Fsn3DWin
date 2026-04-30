@@ -1,0 +1,17 @@
+{
+  "name": "fsn3dwin",
+  "version-string": "0.1.0",
+  "description": "A cinematic GPU-accelerated 3D filesystem visualizer for Windows.",
+  "dependencies": [
+    "glfw3",
+    "glad",
+    "glm",
+    {
+      "name": "imgui",
+      "features": [
+        "glfw-binding",
+        "opengl3-binding"
+      ]
+    }
+  ]
+}

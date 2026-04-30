@@ -1,0 +1,693 @@
+#include "ui/Hud.hpp"
+
+#include <imgui.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <filesystem>
+
+namespace {
+constexpr int ThemeCount = 3;
+constexpr int RenderModeCount = 3;
+constexpr int LayoutModeCount = 3;
+constexpr int SizeEmphasisCount = 2;
+constexpr int LabelModeCount = 4;
+
+ImVec4 legendColor(FileCategory category)
+{
+    switch (category) {
+    case FileCategory::Directory:
+        return ImVec4(0.10f, 0.95f, 0.82f, 1.0f);
+    case FileCategory::Source:
+        return ImVec4(0.20f, 0.72f, 1.0f, 1.0f);
+    case FileCategory::Document:
+        return ImVec4(0.95f, 0.88f, 0.35f, 1.0f);
+    case FileCategory::Image:
+        return ImVec4(1.0f, 0.35f, 0.82f, 1.0f);
+    case FileCategory::Audio:
+        return ImVec4(0.58f, 0.38f, 1.0f, 1.0f);
+    case FileCategory::Video:
+        return ImVec4(1.0f, 0.52f, 0.22f, 1.0f);
+    case FileCategory::Archive:
+        return ImVec4(0.62f, 1.0f, 0.35f, 1.0f);
+    case FileCategory::Executable:
+        return ImVec4(1.0f, 0.18f, 0.26f, 1.0f);
+    case FileCategory::System:
+        return ImVec4(0.82f, 0.92f, 1.0f, 1.0f);
+    case FileCategory::Data:
+        return ImVec4(0.32f, 1.0f, 0.92f, 1.0f);
+    case FileCategory::Error:
+        return ImVec4(1.0f, 0.08f, 0.08f, 1.0f);
+    case FileCategory::Other:
+    default:
+        return ImVec4(0.62f, 0.72f, 0.86f, 1.0f);
+    }
+}
+
+std::string formatBytes(std::uintmax_t bytes)
+{
+    constexpr double KiB = 1024.0;
+    constexpr double MiB = KiB * 1024.0;
+    constexpr double GiB = MiB * 1024.0;
+
+    char buffer[64]{};
+    if (bytes >= static_cast<std::uintmax_t>(GiB)) {
+        std::snprintf(buffer, sizeof(buffer), "%.2f GiB", static_cast<double>(bytes) / GiB);
+    } else if (bytes >= static_cast<std::uintmax_t>(MiB)) {
+        std::snprintf(buffer, sizeof(buffer), "%.2f MiB", static_cast<double>(bytes) / MiB);
+    } else if (bytes >= static_cast<std::uintmax_t>(KiB)) {
+        std::snprintf(buffer, sizeof(buffer), "%.2f KiB", static_cast<double>(bytes) / KiB);
+    } else {
+        std::snprintf(buffer, sizeof(buffer), "%llu B", static_cast<unsigned long long>(bytes));
+    }
+
+    return buffer;
+}
+
+void drawMessageList(const char* title, const std::vector<std::string>& messages)
+{
+    if (messages.empty()) {
+        return;
+    }
+
+    ImGui::TextUnformatted(title);
+
+    const std::size_t first = messages.size() > 4 ? messages.size() - 4 : 0;
+    for (std::size_t index = first; index < messages.size(); ++index) {
+        ImGui::Bullet();
+        ImGui::SameLine();
+        ImGui::TextWrapped("%s", messages[index].c_str());
+    }
+}
+
+void drawLegendItem(FileCategory category)
+{
+    ImGui::ColorButton(fileCategoryName(category), legendColor(category), ImGuiColorEditFlags_NoTooltip, ImVec2(13.0f, 13.0f));
+    ImGui::SameLine();
+    ImGui::TextUnformatted(fileCategoryName(category));
+}
+
+std::string pathToString(const std::filesystem::path& path)
+{
+    try {
+        return path.string();
+    } catch (...) {
+        return "<path>";
+    }
+}
+
+void drawSelectedMetadata(const SceneNode* selectedSceneNode, const FileNode* selectedFileNode)
+{
+    if (selectedSceneNode == nullptr || selectedFileNode == nullptr) {
+        ImGui::TextDisabled("No selected node");
+        return;
+    }
+
+    ImGui::TextUnformatted("Selected metadata");
+    ImGui::Separator();
+    ImGui::TextWrapped("Name: %s", selectedFileNode->name.c_str());
+    ImGui::TextWrapped("Full path: %s", pathToString(selectedFileNode->fullPath).c_str());
+    ImGui::Text("Type: %s", fileNodeTypeName(selectedFileNode->type));
+    ImGui::Text("Extension: %s", selectedFileNode->extension.empty() ? "(none)" : selectedFileNode->extension.c_str());
+    ImGui::Text("Category: %s", fileCategoryName(selectedFileNode->category));
+    ImGui::Text(
+        "Size: %s",
+        selectedFileNode->sizeKnown ? formatBytes(selectedFileNode->sizeBytes).c_str() : "(unknown)");
+    ImGui::Text("Depth: %u", selectedFileNode->depth);
+
+    if (selectedFileNode->type == FileNodeType::Directory) {
+        ImGui::Text("Child count: %llu", static_cast<unsigned long long>(selectedFileNode->childIds.size()));
+    }
+
+    ImGui::Text("Scene id: %u", selectedSceneNode->sceneId);
+}
+
+void drawScreenLabels(const HudState& state)
+{
+    if (state.overlayLabels.empty()) {
+        return;
+    }
+
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    const ImVec2 padding(8.0f, 5.0f);
+
+    for (const OverlayLabel& label : state.overlayLabels) {
+        if (label.text.empty()) {
+            continue;
+        }
+
+        const ImVec2 textSize = ImGui::CalcTextSize(label.text.c_str());
+        const ImVec2 anchor(label.position.x, label.position.y);
+        const ImVec2 min(anchor.x - textSize.x * 0.5f - padding.x, anchor.y - textSize.y - padding.y * 2.0f);
+        const ImVec2 max(anchor.x + textSize.x * 0.5f + padding.x, anchor.y);
+        const ImU32 borderColor = label.accent ? IM_COL32(255, 230, 95, 235) : IM_COL32(120, 255, 230, 210);
+
+        drawList->AddRectFilled(min, max, IM_COL32(3, 10, 20, label.accent ? 225 : 185), 4.0f);
+        drawList->AddRect(min, max, borderColor, 4.0f);
+        drawList->AddLine(ImVec2(anchor.x, max.y), ImVec2(anchor.x, max.y + 10.0f), borderColor, 1.0f);
+        drawList->AddText(ImVec2(min.x + padding.x, min.y + padding.y), IM_COL32(230, 255, 245, 255), label.text.c_str());
+    }
+}
+
+void drawCategoryToggles(FileWorldFilters& filters)
+{
+    ImGui::Checkbox("Directories", &filters.showDirectories);
+    ImGui::SameLine();
+    ImGui::Checkbox("Code", &filters.showCode);
+
+    ImGui::Checkbox("Images", &filters.showImages);
+    ImGui::SameLine();
+    ImGui::Checkbox("Video", &filters.showVideo);
+
+    ImGui::Checkbox("Audio", &filters.showAudio);
+    ImGui::SameLine();
+    ImGui::Checkbox("Documents", &filters.showDocuments);
+
+    ImGui::Checkbox("Archives", &filters.showArchives);
+    ImGui::SameLine();
+    ImGui::Checkbox("Executables", &filters.showExecutables);
+
+    ImGui::Checkbox("Other", &filters.showOther);
+}
+
+void drawHoverTooltip(const HudState& state)
+{
+    if (!state.hoverTooltipVisible || state.hoverName.empty()) {
+        return;
+    }
+
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    const ImVec2 padding(9.0f, 6.0f);
+    const ImVec2 origin(state.hoverTooltipPosition.x + 18.0f, state.hoverTooltipPosition.y + 18.0f);
+    const char* lines[] = {
+        state.hoverName.c_str(),
+        state.hoverCategory.c_str(),
+        state.hoverSize.c_str(),
+    };
+
+    ImVec2 size(0.0f, 0.0f);
+    for (const char* line : lines) {
+        const ImVec2 lineSize = ImGui::CalcTextSize(line);
+        size.x = std::max(size.x, lineSize.x);
+        size.y += lineSize.y + 3.0f;
+    }
+    size.y -= 3.0f;
+
+    const ImVec2 min = origin;
+    const ImVec2 max(origin.x + size.x + padding.x * 2.0f, origin.y + size.y + padding.y * 2.0f);
+    drawList->AddRectFilled(min, max, IM_COL32(2, 9, 18, 225), 5.0f);
+    drawList->AddRect(min, max, IM_COL32(80, 220, 255, 230), 5.0f);
+
+    float y = min.y + padding.y;
+    drawList->AddText(ImVec2(min.x + padding.x, y), IM_COL32(240, 255, 245, 255), lines[0]);
+    y += ImGui::GetTextLineHeight() + 3.0f;
+    drawList->AddText(ImVec2(min.x + padding.x, y), IM_COL32(150, 240, 255, 245), lines[1]);
+    y += ImGui::GetTextLineHeight() + 3.0f;
+    drawList->AddText(ImVec2(min.x + padding.x, y), IM_COL32(255, 222, 115, 245), lines[2]);
+}
+
+void drawCornerBracket(ImDrawList* drawList, const ImVec2& a, float size, bool right, bool bottom, ImU32 color)
+{
+    const float sx = right ? -size : size;
+    const float sy = bottom ? -size : size;
+    drawList->AddLine(a, ImVec2(a.x + sx, a.y), color, 1.6f);
+    drawList->AddLine(a, ImVec2(a.x, a.y + sy), color, 1.6f);
+}
+
+void drawOverlayEffects(const HudState& state, const FileScanOptions& scanOptions, const FileScanResult* scanResult)
+{
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const float pulse = 0.5f + 0.5f * std::sin(static_cast<float>(state.totalSeconds) * 2.3f);
+    const ImU32 bracketColor = IM_COL32(80, 255, 220, static_cast<int>(135 + pulse * 70));
+
+    for (float y = 0.0f; y < display.y; y += 4.0f) {
+        drawList->AddLine(ImVec2(0.0f, y), ImVec2(display.x, y), IM_COL32(120, 255, 220, 8), 1.0f);
+    }
+
+    const float margin = 18.0f;
+    const float bracket = 42.0f + pulse * 8.0f;
+    drawCornerBracket(drawList, ImVec2(margin, margin), bracket, false, false, bracketColor);
+    drawCornerBracket(drawList, ImVec2(display.x - margin, margin), bracket, true, false, bracketColor);
+    drawCornerBracket(drawList, ImVec2(margin, display.y - margin), bracket, false, true, bracketColor);
+    drawCornerBracket(drawList, ImVec2(display.x - margin, display.y - margin), bracket, true, true, bracketColor);
+
+    const std::string rootPath = "ROOT: " + pathToString(scanOptions.rootPath);
+    drawList->AddText(ImVec2(24.0f, display.y - 56.0f), IM_COL32(160, 245, 255, 220), rootPath.c_str());
+    drawList->AddText(ImVec2(24.0f, display.y - 34.0f), IM_COL32(255, 220, 110, 230), "READ-ONLY METADATA MODE // NO OPEN // NO EXECUTE // NO DELETE");
+
+    if (state.scanState == FileScanState::Scanning || state.scanState == FileScanState::CancelRequested) {
+        const float sweep = std::fmod(static_cast<float>(state.totalSeconds) * 220.0f, display.x + 260.0f) - 130.0f;
+        drawList->AddRectFilled(
+            ImVec2(sweep - 80.0f, 0.0f),
+            ImVec2(sweep + 80.0f, display.y),
+            IM_COL32(70, 255, 220, 22));
+        drawList->AddText(
+            ImVec2(display.x * 0.5f - 118.0f, 28.0f),
+            IM_COL32(150, 255, 225, 235),
+            state.scanState == FileScanState::CancelRequested ? "CANCEL REQUESTED // DRAINING WORKER" : "INDEXING SECTORS // READ-ONLY SCAN");
+    }
+
+    const std::vector<std::string>* log = state.scanLog;
+    const bool logEmpty = log == nullptr || log->empty();
+    const bool useFallbackLog = scanResult != nullptr && logEmpty;
+
+    if (scanResult == nullptr && logEmpty &&
+        state.scanState != FileScanState::Scanning &&
+        state.scanState != FileScanState::CancelRequested) {
+        return;
+    }
+
+    const ImVec2 logMin(display.x - 360.0f, display.y - 158.0f);
+    const ImVec2 logMax(display.x - 24.0f, display.y - 28.0f);
+    drawList->AddRectFilled(logMin, logMax, IM_COL32(2, 8, 15, 160), 4.0f);
+    drawList->AddRect(logMin, logMax, IM_COL32(70, 210, 255, 130), 4.0f);
+    drawList->AddText(ImVec2(logMin.x + 10.0f, logMin.y + 8.0f), IM_COL32(120, 255, 220, 220), "SCAN LOG");
+
+    char fallbackCount[80]{};
+    if (useFallbackLog) {
+        std::snprintf(fallbackCount, sizeof(fallbackCount), "visible nodes: %llu", static_cast<unsigned long long>(scanResult->counts.nodes));
+    }
+
+    const std::size_t logSize = useFallbackLog ? 2U : (log != nullptr ? log->size() : 0U);
+    const std::size_t first = logSize > 5 ? logSize - 5 : 0;
+    float y = logMin.y + 30.0f;
+    for (std::size_t index = first; index < logSize; ++index) {
+        const char* line = "";
+        if (useFallbackLog) {
+            line = index == 0 ? "awaiting filter or selection input" : fallbackCount;
+        } else if (log != nullptr) {
+            line = (*log)[index].c_str();
+        }
+
+        drawList->AddText(ImVec2(logMin.x + 10.0f, y), IM_COL32(185, 245, 255, 210), line);
+        y += 18.0f;
+    }
+}
+}
+
+const char* labelModeName(LabelMode mode)
+{
+    switch (mode) {
+    case LabelMode::Off:
+        return "Off";
+    case LabelMode::SelectedOnly:
+        return "Selected only";
+    case LabelMode::Important:
+        return "Important";
+    case LabelMode::LimitedAll:
+    default:
+        return "Limited all";
+    }
+}
+
+const char* presentationCameraModeName(PresentationCameraMode mode)
+{
+    switch (mode) {
+    case PresentationCameraMode::OrbitRoot:
+        return "Orbit root";
+    case PresentationCameraMode::OrbitSelected:
+        return "Orbit selected";
+    case PresentationCameraMode::FlyThrough:
+    default:
+        return "Slow fly-through";
+    }
+}
+
+HudAction Hud::draw(
+    const HudState& state,
+    DemoTheme& theme,
+    SceneMode& sceneMode,
+    FileScanOptions& scanOptions,
+    const FileScanResult* scanResult,
+    FileWorldSettings& fileWorldSettings,
+    const FileWorldLayout* fileWorldLayout,
+    RenderMode& renderMode,
+    FileWorldFilters& fileWorldFilters,
+    LabelMode& labelMode,
+    bool& presentationActive,
+    PresentationCameraMode& presentationMode,
+    bool& presentationPaused,
+    float& presentationSpeed,
+    bool& cleanHud,
+    const SceneNode* selectedSceneNode,
+    const FileNode* selectedFileNode)
+{
+    HudAction action = HudAction::None;
+
+    if (cleanHud) {
+        ImGui::SetNextWindowPos(ImVec2(18.0f, 18.0f), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(380.0f, 0.0f), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Fsn3DWin", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::TextUnformatted("Fsn3DWin");
+        ImGui::Text("Version %s", state.appVersion.c_str());
+        ImGui::TextUnformatted("Cinematic 3D filesystem visualizer");
+        ImGui::Separator();
+        ImGui::Text("Presentation: %s", presentationActive ? presentationCameraModeName(presentationMode) : "off");
+        ImGui::Text("Read-only mode: ON");
+        if (!state.screenshotStatus.empty()) {
+            ImGui::TextWrapped("%s", state.screenshotStatus.c_str());
+        }
+        ImGui::Separator();
+        drawSelectedMetadata(selectedSceneNode, selectedFileNode);
+        ImGui::End();
+
+        drawOverlayEffects(state, scanOptions, scanResult);
+        drawScreenLabels(state);
+        drawHoverTooltip(state);
+        return action;
+    }
+
+    ImGui::SetNextWindowPos(ImVec2(18.0f, 18.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(360.0f, 0.0f), ImGuiCond_FirstUseEver);
+
+    ImGui::Begin("Fsn3DWin", nullptr, ImGuiWindowFlags_NoCollapse);
+    ImGui::TextUnformatted("Fsn3DWin");
+    ImGui::Text("Version %s", state.appVersion.c_str());
+    ImGui::TextUnformatted("Cinematic 3D filesystem visualizer");
+    ImGui::Separator();
+    ImGui::TextUnformatted(state.stageName);
+    ImGui::Text("FPS: %.1f", state.fps);
+    ImGui::Text("Frame time: %.2f ms", state.frameTimeMs);
+    ImGui::Text("Instances: %llu", static_cast<unsigned long long>(state.instanceCount));
+    ImGui::Text("Scan state: %s", fileScanStateName(state.scanState));
+    if (state.scanState == FileScanState::Scanning || state.scanState == FileScanState::CancelRequested) {
+        ImGui::Text(
+            "Progress: %llu nodes  %llu dirs  %llu warnings  %.2f s",
+            static_cast<unsigned long long>(state.scanNodes),
+            static_cast<unsigned long long>(state.scanDirectories),
+            static_cast<unsigned long long>(state.scanWarnings),
+            state.scanElapsedSeconds);
+    }
+    ImGui::Text("OpenGL version: %s", state.openGlVersion.c_str());
+    ImGui::Text("Read-only mode: %s", state.readOnly ? "ON" : "OFF");
+    ImGui::Separator();
+
+    int selectedTheme = static_cast<int>(theme);
+    const char* themePreview = DemoScene::themeName(theme);
+    if (ImGui::BeginCombo("Theme", themePreview)) {
+        for (int index = 0; index < ThemeCount; ++index) {
+            const auto candidate = static_cast<DemoTheme>(index);
+            const bool selected = selectedTheme == index;
+            if (ImGui::Selectable(DemoScene::themeName(candidate), selected)) {
+                selectedTheme = index;
+            }
+
+            if (selected) {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        ImGui::EndCombo();
+    }
+    theme = static_cast<DemoTheme>(selectedTheme);
+
+    int selectedRenderMode = static_cast<int>(renderMode);
+    if (ImGui::BeginCombo("Render mode", renderModeName(renderMode))) {
+        for (int index = 0; index < RenderModeCount; ++index) {
+            const auto candidate = static_cast<RenderMode>(index);
+            const bool selected = selectedRenderMode == index;
+            if (ImGui::Selectable(renderModeName(candidate), selected)) {
+                selectedRenderMode = index;
+            }
+
+            if (selected) {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        ImGui::EndCombo();
+    }
+    renderMode = static_cast<RenderMode>(selectedRenderMode);
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("Presentation");
+    ImGui::Checkbox("Presentation mode", &presentationActive);
+    ImGui::SameLine();
+    ImGui::Checkbox("Clean HUD", &cleanHud);
+
+    int selectedPresentationMode = static_cast<int>(presentationMode);
+    if (ImGui::BeginCombo("Camera mode", presentationCameraModeName(presentationMode))) {
+        for (int index = 0; index < 3; ++index) {
+            const auto candidate = static_cast<PresentationCameraMode>(index);
+            const bool selected = selectedPresentationMode == index;
+            if (ImGui::Selectable(presentationCameraModeName(candidate), selected)) {
+                selectedPresentationMode = index;
+            }
+
+            if (selected) {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        ImGui::EndCombo();
+    }
+    presentationMode = static_cast<PresentationCameraMode>(selectedPresentationMode);
+
+    ImGui::Checkbox("Pause camera", &presentationPaused);
+    ImGui::SliderFloat("Presentation speed", &presentationSpeed, 0.15f, 4.0f, "%.2f");
+    if (!state.screenshotStatus.empty()) {
+        ImGui::TextWrapped("%s", state.screenshotStatus.c_str());
+    }
+
+    int selectedLabelMode = static_cast<int>(labelMode);
+    if (ImGui::BeginCombo("Label mode", labelModeName(labelMode))) {
+        for (int index = 0; index < LabelModeCount; ++index) {
+            const auto candidate = static_cast<LabelMode>(index);
+            const bool selected = selectedLabelMode == index;
+            if (ImGui::Selectable(labelModeName(candidate), selected)) {
+                selectedLabelMode = index;
+            }
+
+            if (selected) {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        ImGui::EndCombo();
+    }
+    labelMode = static_cast<LabelMode>(selectedLabelMode);
+
+    int selectedMode = static_cast<int>(sceneMode);
+    if (ImGui::RadioButton("Demo Scene", selectedMode == static_cast<int>(SceneMode::Demo))) {
+        selectedMode = static_cast<int>(SceneMode::Demo);
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Real Scan Scene", selectedMode == static_cast<int>(SceneMode::RealScan))) {
+        selectedMode = static_cast<int>(SceneMode::RealScan);
+    }
+    sceneMode = static_cast<SceneMode>(selectedMode);
+
+    ImGui::Separator();
+    syncRootPathBuffer(scanOptions);
+    syncFilterBuffers(fileWorldFilters);
+
+    if (ImGui::InputText("Root path", rootPathBuffer_.data(), rootPathBuffer_.size())) {
+        bufferedRootPath_ = rootPathBuffer_.data();
+        scanOptions.rootPath = bufferedRootPath_;
+    }
+
+    int maxDepth = static_cast<int>(scanOptions.maxDepth);
+    if (ImGui::InputInt("Max depth", &maxDepth)) {
+        maxDepth = std::clamp(maxDepth, 0, 32);
+        scanOptions.maxDepth = static_cast<std::uint32_t>(maxDepth);
+    }
+
+    int maxNodes = static_cast<int>(std::min<std::size_t>(scanOptions.maxNodes, 100000));
+    if (ImGui::InputInt("Max nodes", &maxNodes, 100, 1000)) {
+        maxNodes = std::clamp(maxNodes, 1, 100000);
+        scanOptions.maxNodes = static_cast<std::size_t>(maxNodes);
+    }
+
+    ImGui::Checkbox("Include hidden", &scanOptions.includeHidden);
+
+    if (state.scanState == FileScanState::Scanning || state.scanState == FileScanState::CancelRequested) {
+        ImGui::BeginDisabled(state.scanState == FileScanState::CancelRequested);
+        if (ImGui::Button("Cancel scan")) {
+            action = HudAction::CancelScan;
+        }
+        ImGui::EndDisabled();
+    } else if (ImGui::Button("Scan")) {
+        action = HudAction::Scan;
+    }
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("Search filters");
+    if (ImGui::InputText("Name", nameFilterBuffer_.data(), nameFilterBuffer_.size())) {
+        bufferedNameFilter_ = nameFilterBuffer_.data();
+        fileWorldFilters.nameSubstring = bufferedNameFilter_;
+    }
+
+    if (ImGui::InputText("Extension", extensionFilterBuffer_.data(), extensionFilterBuffer_.size())) {
+        bufferedExtensionFilter_ = extensionFilterBuffer_.data();
+        fileWorldFilters.extensionSubstring = bufferedExtensionFilter_;
+    }
+
+    drawCategoryToggles(fileWorldFilters);
+
+    if (ImGui::Button("Clear filters")) {
+        action = HudAction::ClearFilters;
+    }
+
+    if (scanResult != nullptr) {
+        const FileScanCounts& counts = scanResult->counts;
+        ImGui::Text("Scan time: %.3f s", scanResult->elapsedSeconds);
+        ImGui::Text(
+            "Nodes: %llu  Dirs: %llu  Files: %llu",
+            static_cast<unsigned long long>(counts.nodes),
+            static_cast<unsigned long long>(counts.directories),
+            static_cast<unsigned long long>(counts.files));
+        ImGui::Text(
+            "Symlinks: %llu  Other: %llu  Errors: %llu",
+            static_cast<unsigned long long>(counts.symlinks),
+            static_cast<unsigned long long>(counts.other),
+            static_cast<unsigned long long>(counts.errors));
+        ImGui::Text("Known size: %s", formatBytes(counts.knownBytes).c_str());
+
+        if (scanResult->truncated) {
+            ImGui::TextColored(ImVec4(1.0f, 0.70f, 0.18f, 1.0f), "Result truncated at max nodes");
+        }
+
+        drawMessageList("Warnings", scanResult->warnings);
+        drawMessageList("Errors", scanResult->errors);
+
+        ImGui::Separator();
+        ImGui::TextUnformatted("File world layout");
+        int selectedLayoutMode = static_cast<int>(fileWorldSettings.layoutMode);
+        if (ImGui::BeginCombo("Layout mode", fileWorldLayoutModeName(fileWorldSettings.layoutMode))) {
+            for (int index = 0; index < LayoutModeCount; ++index) {
+                const auto candidate = static_cast<FileWorldLayoutMode>(index);
+                const bool selected = selectedLayoutMode == index;
+                if (ImGui::Selectable(fileWorldLayoutModeName(candidate), selected)) {
+                    selectedLayoutMode = index;
+                    action = HudAction::RebuildLayout;
+                }
+
+                if (selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+        fileWorldSettings.layoutMode = static_cast<FileWorldLayoutMode>(selectedLayoutMode);
+
+        int selectedSizeMode = static_cast<int>(fileWorldSettings.sizeEmphasis);
+        if (ImGui::BeginCombo("Size emphasis", sizeEmphasisModeName(fileWorldSettings.sizeEmphasis))) {
+            for (int index = 0; index < SizeEmphasisCount; ++index) {
+                const auto candidate = static_cast<SizeEmphasisMode>(index);
+                const bool selected = selectedSizeMode == index;
+                if (ImGui::Selectable(sizeEmphasisModeName(candidate), selected)) {
+                    selectedSizeMode = index;
+                    action = HudAction::RebuildLayout;
+                }
+
+                if (selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+        fileWorldSettings.sizeEmphasis = static_cast<SizeEmphasisMode>(selectedSizeMode);
+
+        ImGui::SliderFloat("Spacing", &fileWorldSettings.spacing, 0.75f, 4.0f, "%.2f");
+        ImGui::SliderFloat("Height scale", &fileWorldSettings.heightScale, 0.15f, 1.6f, "%.2f");
+        ImGui::SliderFloat("Directory scale", &fileWorldSettings.directoryTowerScale, 0.5f, 2.2f, "%.2f");
+        ImGui::SliderFloat("Max height", &fileWorldSettings.maxHeight, 4.0f, 36.0f, "%.1f");
+        ImGui::SliderFloat("City spread", &fileWorldSettings.citySpread, 0.45f, 2.8f, "%.2f");
+
+        if (ImGui::Button("Rebuild layout")) {
+            action = HudAction::RebuildLayout;
+        }
+
+        if (fileWorldLayout != nullptr) {
+            ImGui::Text(
+                "Scene nodes: %llu  Visible: %llu",
+                static_cast<unsigned long long>(fileWorldLayout->nodes.size()),
+                static_cast<unsigned long long>(fileWorldLayout->visibleCount));
+        }
+
+        if (ImGui::TreeNodeEx("Category legend", ImGuiTreeNodeFlags_DefaultOpen)) {
+            drawLegendItem(FileCategory::Directory);
+            drawLegendItem(FileCategory::Source);
+            drawLegendItem(FileCategory::Document);
+            drawLegendItem(FileCategory::Image);
+            drawLegendItem(FileCategory::Audio);
+            drawLegendItem(FileCategory::Video);
+            drawLegendItem(FileCategory::Archive);
+            drawLegendItem(FileCategory::Executable);
+            drawLegendItem(FileCategory::System);
+            drawLegendItem(FileCategory::Data);
+            drawLegendItem(FileCategory::Other);
+            drawLegendItem(FileCategory::Error);
+            ImGui::TreePop();
+        }
+    }
+
+    ImGui::Separator();
+    drawSelectedMetadata(selectedSceneNode, selectedFileNode);
+
+    ImGui::Separator();
+    ImGui::Text(
+        "Camera position: %.2f, %.2f, %.2f",
+        state.cameraPosition.x,
+        state.cameraPosition.y,
+        state.cameraPosition.z);
+    ImGui::Text("Yaw / pitch: %.1f / %.1f", state.cameraYaw, state.cameraPitch);
+    ImGui::Text("Speed: %.1f", state.cameraSpeed);
+
+    if (ImGui::Button("Reset camera")) {
+        action = HudAction::ResetCamera;
+    }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("Quit")) {
+        action = HudAction::Quit;
+    }
+
+    ImGui::End();
+    drawOverlayEffects(state, scanOptions, scanResult);
+    drawScreenLabels(state);
+    drawHoverTooltip(state);
+
+    return action;
+}
+
+void Hud::syncRootPathBuffer(const FileScanOptions& scanOptions)
+{
+    std::string rootPath;
+    try {
+        rootPath = scanOptions.rootPath.string();
+    } catch (...) {
+        rootPath = ".";
+    }
+
+    if (rootPathBufferReady_ && bufferedRootPath_ == rootPath) {
+        return;
+    }
+
+    bufferedRootPath_ = rootPath;
+    std::fill(rootPathBuffer_.begin(), rootPathBuffer_.end(), '\0');
+    const std::size_t copyLength = std::min(rootPath.size(), rootPathBuffer_.size() - 1U);
+    std::copy_n(rootPath.data(), copyLength, rootPathBuffer_.data());
+    rootPathBufferReady_ = true;
+}
+
+void Hud::syncFilterBuffers(const FileWorldFilters& fileWorldFilters)
+{
+    if (filterBuffersReady_ &&
+        bufferedNameFilter_ == fileWorldFilters.nameSubstring &&
+        bufferedExtensionFilter_ == fileWorldFilters.extensionSubstring) {
+        return;
+    }
+
+    bufferedNameFilter_ = fileWorldFilters.nameSubstring;
+    bufferedExtensionFilter_ = fileWorldFilters.extensionSubstring;
+
+    std::fill(nameFilterBuffer_.begin(), nameFilterBuffer_.end(), '\0');
+    std::fill(extensionFilterBuffer_.begin(), extensionFilterBuffer_.end(), '\0');
+
+    const std::size_t nameLength = std::min(bufferedNameFilter_.size(), nameFilterBuffer_.size() - 1U);
+    const std::size_t extensionLength = std::min(bufferedExtensionFilter_.size(), extensionFilterBuffer_.size() - 1U);
+
+    std::copy_n(bufferedNameFilter_.data(), nameLength, nameFilterBuffer_.data());
+    std::copy_n(bufferedExtensionFilter_.data(), extensionLength, extensionFilterBuffer_.data());
+    filterBuffersReady_ = true;
+}
