@@ -11,7 +11,7 @@ It is intentionally read-only. It is not a file manager. It is built to look spe
 
 ![Fsn3DWin demo scene](docs/screenshots/demo-startup.png)
 
-![Fsn3DWin Windows scan](docs/screenshots/windows-filesystem-city.png)
+![Fsn3DWin labeled file scan](docs/screenshots/windows-filesystem-city.png)
 
 ![Fsn3DWin image preview](docs/screenshots/image-preview.png)
 
@@ -172,7 +172,7 @@ Danger actions are controlled from the HUD and are off by default.
 
 ## Screenshots
 
-The checked-in screenshots are captured from the synthetic demo scene and from `C:\Windows` with a shallow node limit. They avoid private user folders and personal filenames.
+The checked-in screenshots are captured from the synthetic demo scene and from a sanitized `C:\Fsn3dWin\Sample Gallery` folder with copied, generically named sample images. They avoid private user folders and personal filenames.
 
 Runtime screenshots are written to:
 

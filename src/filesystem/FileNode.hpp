@@ -49,3 +49,5 @@ struct FileNode {
 
 const char* fileNodeTypeName(FileNodeType type);
 const char* fileCategoryName(FileCategory category);
+const char* fileNodeKindName(const FileNode& node);
+const char* fileNodeLabelPrefix(const FileNode& node);

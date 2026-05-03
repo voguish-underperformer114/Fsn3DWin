@@ -40,6 +40,7 @@ memory*.md
 # Keep local tests/checks off the public repo
 test/
 tests/
+test_files/
 **/test/
 **/tests/
 *_test.*

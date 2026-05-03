@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 
@@ -43,6 +44,37 @@ ImVec4 legendColor(FileCategory category)
     case FileCategory::Other:
     default:
         return ImVec4(0.86f, 0.68f, 0.34f, 1.0f);
+    }
+}
+
+const char* categoryGuideName(FileCategory category)
+{
+    switch (category) {
+    case FileCategory::Directory:
+        return "Folder";
+    case FileCategory::Source:
+        return "Code file";
+    case FileCategory::Document:
+        return "Document";
+    case FileCategory::Image:
+        return "Image file";
+    case FileCategory::Audio:
+        return "Audio file";
+    case FileCategory::Video:
+        return "Video file";
+    case FileCategory::Archive:
+        return "Archive";
+    case FileCategory::Executable:
+        return "App or executable";
+    case FileCategory::System:
+        return "System file";
+    case FileCategory::Data:
+        return "Data file";
+    case FileCategory::Error:
+        return "Unreadable item";
+    case FileCategory::Other:
+    default:
+        return "Other file";
     }
 }
 
@@ -86,7 +118,7 @@ void drawLegendItem(FileCategory category)
 {
     ImGui::ColorButton(fileCategoryName(category), legendColor(category), ImGuiColorEditFlags_NoTooltip, ImVec2(13.0f, 13.0f));
     ImGui::SameLine();
-    ImGui::TextUnformatted(fileCategoryName(category));
+    ImGui::Text("%s - %s", fileCategoryName(category), categoryGuideName(category));
 }
 
 std::string pathToString(const std::filesystem::path& path)
@@ -143,8 +175,9 @@ void drawSelectedMetadata(const SceneNode* selectedSceneNode, const FileNode* se
     ImGui::TextUnformatted("Selected metadata");
     ImGui::Separator();
     ImGui::TextWrapped("Name: %s", selectedFileNode->name.c_str());
+    ImGui::Text("What it is: %s", fileNodeKindName(*selectedFileNode));
     ImGui::TextWrapped("Full path: %s", pathToString(selectedFileNode->fullPath).c_str());
-    ImGui::Text("Type: %s", fileNodeTypeName(selectedFileNode->type));
+    ImGui::Text("Technical type: %s", fileNodeTypeName(selectedFileNode->type));
     ImGui::Text("Extension: %s", selectedFileNode->extension.empty() ? "(none)" : selectedFileNode->extension.c_str());
     ImGui::Text("Category: %s", fileCategoryName(selectedFileNode->category));
     ImGui::Text(
@@ -159,6 +192,94 @@ void drawSelectedMetadata(const SceneNode* selectedSceneNode, const FileNode* se
     ImGui::Text("Scene id: %u", selectedSceneNode->sceneId);
 }
 
+void drawImagePreviewPanel(const HudState& state, bool showStatus)
+{
+    ImGui::Separator();
+    ImGui::TextUnformatted("Image preview");
+
+    if (state.imagePreviewTextureId == 0 || state.imagePreviewWidth <= 0 || state.imagePreviewHeight <= 0) {
+        if (!state.imagePreviewStatus.empty()) {
+            ImGui::TextWrapped("%s", state.imagePreviewStatus.c_str());
+        } else {
+            ImGui::TextDisabled("No image file inspected");
+        }
+        return;
+    }
+
+    const float availableWidth = std::max(180.0f, ImGui::GetContentRegionAvail().x);
+    const float aspect = static_cast<float>(state.imagePreviewWidth) / static_cast<float>(std::max(state.imagePreviewHeight, 1));
+    float previewWidth = std::min(availableWidth, 430.0f);
+    float previewHeight = previewWidth / std::max(aspect, 0.05f);
+    if (previewHeight > 220.0f) {
+        previewHeight = 220.0f;
+        previewWidth = previewHeight * aspect;
+    }
+
+    previewWidth = std::clamp(previewWidth, 96.0f, availableWidth);
+    previewHeight = std::clamp(previewHeight, 72.0f, 220.0f);
+
+    const float offsetX = (availableWidth - previewWidth) * 0.5f;
+    if (offsetX > 0.0f) {
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offsetX);
+    }
+
+    const ImTextureID texture = (ImTextureID)(std::intptr_t)state.imagePreviewTextureId;
+    ImGui::Image(texture, ImVec2(previewWidth, previewHeight));
+
+    if (showStatus && !state.imagePreviewStatus.empty()) {
+        ImGui::TextWrapped("%s", state.imagePreviewStatus.c_str());
+    }
+}
+
+void drawQuickInspector(
+    const HudState& state,
+    const SceneNode* selectedSceneNode,
+    const FileNode* selectedFileNode)
+{
+    const bool hasSelected = selectedSceneNode != nullptr && selectedFileNode != nullptr;
+    const bool hasHover = state.hoverTooltipVisible && !state.hoverName.empty();
+    const bool hasPreview = state.imagePreviewTextureId != 0;
+    if (!hasSelected && !hasHover && !hasPreview) {
+        return;
+    }
+
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    if (display.x < 840.0f || display.y < 420.0f) {
+        return;
+    }
+
+    const float width = std::min(360.0f, std::max(300.0f, display.x * 0.28f));
+    const float height = hasPreview ? 400.0f : 230.0f;
+    const float clampedHeight = std::min(height, std::max(220.0f, display.y - 168.0f));
+    ImGui::SetNextWindowPos(ImVec2(display.x - width - 18.0f, 112.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(width, clampedHeight), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.93f);
+
+    ImGui::Begin("Inspector", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoResize);
+    if (hasSelected) {
+        ImGui::TextWrapped("%s", selectedFileNode->name.c_str());
+        ImGui::Text("What it is: %s", fileNodeKindName(*selectedFileNode));
+        ImGui::Text("Category: %s", fileCategoryName(selectedFileNode->category));
+        ImGui::Text(
+            "Size: %s",
+            selectedFileNode->sizeKnown ? formatBytes(selectedFileNode->sizeBytes).c_str() : "(unknown)");
+        if (selectedFileNode->type == FileNodeType::Directory) {
+            ImGui::Text("Contains: %llu items", static_cast<unsigned long long>(selectedFileNode->childIds.size()));
+        }
+    } else {
+        ImGui::TextWrapped("%s", state.hoverName.c_str());
+        if (!state.hoverCategory.empty()) {
+            ImGui::TextWrapped("%s", state.hoverCategory.c_str());
+        }
+        if (!state.hoverSize.empty()) {
+            ImGui::TextWrapped("%s", state.hoverSize.c_str());
+        }
+    }
+
+    drawImagePreviewPanel(state, false);
+    ImGui::End();
+}
+
 void drawActiveNamePlate(const HudState& state, const FileNode* selectedFileNode)
 {
     std::string title;
@@ -168,7 +289,7 @@ void drawActiveNamePlate(const HudState& state, const FileNode* selectedFileNode
     if (selectedFileNode != nullptr) {
         selected = true;
         title = selectedFileNode->name;
-        subtitle = std::string(fileCategoryName(selectedFileNode->category)) + " // " + pathToString(selectedFileNode->fullPath);
+        subtitle = std::string(fileNodeKindName(*selectedFileNode)) + " // " + pathToString(selectedFileNode->fullPath);
     } else if (state.hoverTooltipVisible && !state.hoverName.empty()) {
         title = state.hoverName;
         subtitle = state.hoverCategory;
@@ -241,6 +362,7 @@ void drawScreenLabels(const HudState& state)
         blockedRects.push_back(ImVec4(display.x * 0.5f - plateHalfWidth, 8.0f, display.x * 0.5f + plateHalfWidth, 104.0f));
     }
 
+    const bool sparseLabelSet = state.overlayLabels.size() <= 36;
     for (const OverlayLabel& label : state.overlayLabels) {
         if (label.text.empty()) {
             continue;
@@ -265,10 +387,10 @@ void drawScreenLabels(const HudState& state)
         max.y += shiftY;
 
         const ImVec4 rect(min.x, min.y, max.x, max.y);
-        if (overlapsExistingRect(blockedRects, rect, 4.0f)) {
+        if (!label.accent && !sparseLabelSet && overlapsExistingRect(blockedRects, rect, 4.0f)) {
             continue;
         }
-        if (!label.accent && overlapsExistingRect(usedRects, rect, 6.0f)) {
+        if (!label.accent && !sparseLabelSet && overlapsExistingRect(usedRects, rect, 6.0f)) {
             continue;
         }
         usedRects.push_back(rect);
@@ -553,8 +675,10 @@ HudAction Hud::draw(
         }
         ImGui::Separator();
         drawSelectedMetadata(selectedSceneNode, selectedFileNode);
+        drawImagePreviewPanel(state, true);
         ImGui::End();
 
+        drawQuickInspector(state, selectedSceneNode, selectedFileNode);
         drawOverlayEffects(state, scanOptions, scanResult);
         drawScreenLabels(state);
         drawActiveNamePlate(state, selectedFileNode);
@@ -825,9 +949,7 @@ HudAction Hud::draw(
 
     ImGui::Separator();
     drawSelectedMetadata(selectedSceneNode, selectedFileNode);
-    if (!state.imagePreviewStatus.empty()) {
-        ImGui::TextWrapped("Image preview: %s", state.imagePreviewStatus.c_str());
-    }
+    drawImagePreviewPanel(state, true);
     drawDangerActions(action, dangerActionsEnabled, dangerDeleteWarningAccepted, selectedFileNode, deleteConfirmBuffer_);
 
     ImGui::Separator();
@@ -850,6 +972,7 @@ HudAction Hud::draw(
     }
 
     ImGui::End();
+    drawQuickInspector(state, selectedSceneNode, selectedFileNode);
     drawOverlayEffects(state, scanOptions, scanResult);
     drawScreenLabels(state);
     drawActiveNamePlate(state, selectedFileNode);

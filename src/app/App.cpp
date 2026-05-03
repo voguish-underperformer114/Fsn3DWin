@@ -112,6 +112,13 @@ bool containsCaseInsensitive(const std::string& haystack, const std::string& nee
     return lowerCopy(haystack).find(lowerCopy(needle)) != std::string::npos;
 }
 
+bool isPreviewableImageFile(const FileNode* fileNode)
+{
+    return fileNode != nullptr &&
+        fileNode->type == FileNodeType::File &&
+        fileNode->category == FileCategory::Image;
+}
+
 bool filtersEqual(const FileWorldFilters& lhs, const FileWorldFilters& rhs)
 {
     return lhs.nameSubstring == rhs.nameSubstring &&
@@ -355,8 +362,18 @@ void App::pollFrame()
 
     const SceneNode* selectedSceneNode = sceneNodeById(selectedSceneId_);
     const FileNode* selectedFileNode = fileNodeForSceneNode(selectedSceneNode);
-    updateSelectedImagePreview(selectedSceneNode, selectedFileNode);
-    const std::optional<ImageBillboard> imageBillboard = selectedImageBillboard(selectedSceneNode);
+    const SceneNode* hoveredSceneNode = sceneNodeById(hoveredSceneId_);
+    const FileNode* hoveredFileNode = fileNodeForSceneNode(hoveredSceneNode);
+
+    const SceneNode* imagePreviewSceneNode = selectedSceneNode;
+    const FileNode* imagePreviewFileNode = selectedFileNode;
+    if (!isPreviewableImageFile(selectedFileNode) && isPreviewableImageFile(hoveredFileNode)) {
+        imagePreviewSceneNode = hoveredSceneNode;
+        imagePreviewFileNode = hoveredFileNode;
+    }
+
+    updateSelectedImagePreview(imagePreviewSceneNode, imagePreviewFileNode);
+    const std::optional<ImageBillboard> imageBillboard = selectedImageBillboard(imagePreviewSceneNode);
 
     renderer_.beginFrame(framebufferWidth, framebufferHeight, palette.background);
     renderer_.renderScene(
@@ -382,9 +399,6 @@ void App::pollFrame()
         camera_.changeMovementSpeed(io.MouseWheel);
     }
 
-    const SceneNode* hoveredSceneNode = sceneNodeById(hoveredSceneId_);
-    const FileNode* hoveredFileNode = fileNodeForSceneNode(hoveredSceneNode);
-
     glm::vec2 hoverTooltipPosition{};
     bool hoverTooltipVisible = false;
     if (hoveredSceneNode != nullptr) {
@@ -409,9 +423,12 @@ void App::pollFrame()
         .hoverTooltipVisible = hoverTooltipVisible && hoveredFileNode != nullptr,
         .hoverTooltipPosition = hoverTooltipPosition,
         .hoverName = hoveredFileNode != nullptr ? hoveredFileNode->name : std::string(),
-        .hoverCategory = hoveredFileNode != nullptr ? std::string("category: ") + fileCategoryName(hoveredFileNode->category) : std::string(),
+        .hoverCategory = hoveredFileNode != nullptr ? std::string("type: ") + fileNodeKindName(*hoveredFileNode) + " // category: " + fileCategoryName(hoveredFileNode->category) : std::string(),
         .hoverSize = hoveredFileNode != nullptr ? formatBytesForOverlay(*hoveredFileNode) : std::string(),
         .imagePreviewStatus = imagePreviewStatus_,
+        .imagePreviewTextureId = imagePreviewTextureId_,
+        .imagePreviewWidth = imagePreviewWidth_,
+        .imagePreviewHeight = imagePreviewHeight_,
         .scanLog = &scanLog_,
         .presentationActive = presentationActive_,
         .presentationPaused = presentationPaused_,
@@ -785,9 +802,9 @@ void App::updateSelectedImagePreview(const SceneNode* selectedSceneNode, const F
         return;
     }
 
-    if (selectedFileNode->type != FileNodeType::File || selectedFileNode->category != FileCategory::Image) {
+    if (!isPreviewableImageFile(selectedFileNode)) {
         clearSelectedImagePreview();
-        imagePreviewStatus_ = "selected item is not an image file";
+        imagePreviewStatus_ = "inspected item is not an image file";
         return;
     }
 
@@ -1070,32 +1087,7 @@ std::vector<OverlayLabel> App::buildOverlayLabels(int framebufferWidth, int fram
             return name;
         }
 
-        if (fileNode->type == FileNodeType::Directory) {
-            return std::string("[DIR] ") + name;
-        }
-
-        if (fileNode->type == FileNodeType::Symlink) {
-            return std::string("[LINK] ") + name;
-        }
-
-        if (fileNode->type == FileNodeType::Error) {
-            return std::string("[ERR] ") + name;
-        }
-
-        switch (fileNode->category) {
-        case FileCategory::Image:
-            return std::string("[IMG] ") + name;
-        case FileCategory::Source:
-            return std::string("[CODE] ") + name;
-        case FileCategory::Document:
-            return std::string("[DOC] ") + name;
-        case FileCategory::Executable:
-            return std::string("[EXE] ") + name;
-        case FileCategory::Archive:
-            return std::string("[ZIP] ") + name;
-        default:
-            return std::string("[FILE] ") + name;
-        }
+        return std::string(fileNodeLabelPrefix(*fileNode)) + ": " + name;
     };
 
     std::vector<OverlayLabel> labels;
@@ -1156,7 +1148,10 @@ std::vector<OverlayLabel> App::buildOverlayLabels(int framebufferWidth, int fram
             return a.distance < b.distance;
         });
 
-        const std::size_t importantCount = std::min<std::size_t>(directoryNodes.size(), 18);
+        const std::size_t importantCount =
+            labelMode_ == LabelMode::LimitedAll && fileWorldLayout_.visibleCount <= 80
+            ? directoryNodes.size()
+            : std::min<std::size_t>(directoryNodes.size(), 18);
         for (std::size_t index = 0; index < importantCount; ++index) {
             addLabel(*directoryNodes[index].node, false);
         }

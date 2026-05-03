@@ -52,6 +52,9 @@ struct HudState {
     std::string hoverCategory;
     std::string hoverSize;
     std::string imagePreviewStatus;
+    unsigned int imagePreviewTextureId = 0;
+    int imagePreviewWidth = 0;
+    int imagePreviewHeight = 0;
     const std::vector<std::string>* scanLog = nullptr;
     bool presentationActive = false;
     bool presentationPaused = false;
